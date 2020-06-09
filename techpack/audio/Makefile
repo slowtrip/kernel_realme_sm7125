@@ -1,4 +1,8 @@
 # auto-detect subdirs
+ifeq ($(CONFIG_ARCH_ATOLL), y)
+include $(srctree)/techpack/audio/4.0/config/atollauto.conf
+export
+endif
 ifeq ($(CONFIG_ARCH_SDM845), y)
 include $(srctree)/techpack/audio/config/sdm845auto.conf
 export
@@ -27,8 +31,8 @@ USERINCLUDE     += \
 # Use LINUXINCLUDE when you must reference the include/ directory.
 # Needed to be compatible with the O= option
 LINUXINCLUDE    += \
-                -I$(srctree)/techpack/audio/include/uapi \
-                -I$(srctree)/techpack/audio/include
+                -I$(srctree)/techpack/audio/4.0/include/uapi \
+                -I$(srctree)/techpack/audio/4.0/include
 
 ifeq ($(CONFIG_ARCH_SDM845), y)
 LINUXINCLUDE    += \
@@ -50,8 +54,12 @@ ifeq ($(CONFIG_ARCH_SDMSHRIKE), y)
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/config/sm8150autoconf.h
 endif
+ifeq ($(CONFIG_ARCH_ATOLL), y)
+LINUXINCLUDE    += \
+                -include $(srctree)/techpack/audio/4.0/config/atollautoconf.h
+endif
 
-obj-y += soc/
-obj-y += dsp/
-obj-y += ipc/
-obj-y += asoc/
+obj-y += 4.0/soc/
+obj-y += 4.0/dsp/
+obj-y += 4.0/ipc/
+obj-y += 4.0/asoc/
