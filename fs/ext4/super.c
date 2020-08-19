@@ -3878,6 +3878,7 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 			   &journal_ioprio, 0))
 		goto failed_mount;
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 #ifdef CONFIG_UNICODE
@@ -3911,7 +3912,6 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 	}
 #endif
 
->>>>>>> f21624cde598d70f5a7124736eb52b4634e54643
 	if (test_opt(sb, DATA_FLAGS) == EXT4_MOUNT_JOURNAL_DATA) {
 		printk_once(KERN_WARNING "EXT4-fs: Warning: mounting "
 			    "with data=journal disables delayed "

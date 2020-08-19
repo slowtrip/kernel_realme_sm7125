@@ -192,8 +192,13 @@ static int gc_thread_func(void *data)
 
 	set_freezable();
 	do {
-		bool sync_mode;
-
+#ifdef VENDOR_EDIT
+/* yanwu@TECH.Storage.FS.oF2FS, 2019/08/13, add code to optimize gc */
+/* yanwu@TECH.Storage.FS.oF2FS, 2019/08/14, add need_SSR GC */
+/* yanwu@TECH.Storage.FS.oF2FS, 2019/08/14, do FG GC in GC thread */
+		if (of2fs_gc_wait(sbi, wq, &wait_ms))
+			continue;
+#else
 		wait_event_interruptible_timeout(*wq,
 				kthread_should_stop() || freezing(current) ||
 				gc_th->gc_wake,
@@ -1213,14 +1218,17 @@ next_step:
 		block_t start_bidx;
 		nid_t nid = le32_to_cpu(entry->nid);
 
-		/*
-		 * stop BG_GC if there is not enough free sections.
-		 * Or, stop GC if the segment becomes fully valid caused by
-		 * race condition along with SSR block allocation.
-		 */
-		if ((gc_type == BG_GC && has_not_enough_free_secs(sbi, 0, 0)) ||
-				get_valid_blocks(sbi, segno, true) ==
-							BLKS_PER_SEC(sbi))
+		/* stop BG_GC if there is not enough free sections. */
+#ifdef CONFIG_F2FS_BD_STAT
+		if (gc_type == BG_GC && has_not_enough_free_secs(sbi, 0, 0)) {
+			bd_lock(sbi);
+			bd_inc_array_val(sbi, gc_data_blocks, gc_type, gc_blks);
+			bd_inc_array_val(sbi, hotcold_count, HC_GC_COLD_DATA, gc_blks);
+			bd_unlock(sbi);
+			return submitted;
+		}
+#else
+		if (gc_type == BG_GC && has_not_enough_free_secs(sbi, 0, 0))
 			return submitted;
 #endif
 
@@ -1455,6 +1463,20 @@ freed:
 		if (gc_type == FG_GC &&
 				get_valid_blocks(sbi, segno, false) == 0)
 			seg_freed++;
+		migrated++;
+#ifdef CONFIG_F2FS_BD_STAT
+		bd_lock(sbi);
+		if (gc_type == BG_GC || get_valid_blocks(sbi, segno, 1) == 0) {
+			if (type == SUM_TYPE_NODE)
+				bd_inc_array_val(sbi, gc_node_segments, gc_type, 1);
+			else
+				bd_inc_array_val(sbi, gc_data_segments, gc_type, 1);
+			bd_inc_array_val(sbi, hotcold_gc_segments, hc_type + 1, 1);
+		}
+		bd_inc_array_val(sbi, hotcold_gc_blocks, hc_type + 1,
+					(unsigned long)get_valid_blocks(sbi, segno, 1));
+		bd_unlock(sbi);
+#endif
 
 		if (__is_large_section(sbi) && segno + 1 < end_segno)
 			sbi->next_victim_seg[gc_type] = segno + 1;
@@ -1594,7 +1616,19 @@ stop:
 				reserved_segments(sbi),
 				prefree_segments(sbi));
 
-	up_write(&sbi->gc_lock);
+	mutex_unlock(&sbi->gc_mutex);
+#ifdef CONFIG_F2FS_BD_STAT
+	if (gc_completed) {
+		fggc_end = gc_type == FG_GC ? local_clock() : 0;
+		bd_lock(sbi);
+		if (fggc_end)
+			bd_inc_val(sbi, fggc_time, fggc_end - fggc_begin);
+		bd_inc_array_val(sbi, gc_count, gc_type, 1);
+		if (ret)
+			bd_inc_array_val(sbi, gc_fail_count, gc_type, 1);
+		bd_unlock(sbi);
+	}
+#endif
 
 	put_gc_inode(&gc_list);
 

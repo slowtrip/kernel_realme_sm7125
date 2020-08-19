@@ -96,6 +96,7 @@ static int pm_qos_state = 0;
 #define PM_QOS_TOUCH_WAKEUP_VALUE 400
 #endif
 
+<<<<<<< HEAD
 uint8_t DouTap_enable = 0;               // double tap
 uint8_t UpVee_enable  = 0;               // V
 uint8_t DownVee_enable  = 0;             // ^
@@ -111,6 +112,8 @@ uint8_t Mgestrue_enable = 0;             // M
 uint8_t Wgestrue_enable = 0;             // W
 uint8_t Enable_gesture = 0;
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 /*******Part2:declear Area********************************/
 static void speedup_resume(struct work_struct *work);
 static void lcd_trigger_load_tp_fw(struct work_struct *work);
@@ -176,8 +179,11 @@ void operate_mode_switch(struct touchpanel_data *ts)
                 ts->ts_ops->mode_switch(ts->chip_data, MODE_GESTURE, true);
                 if (ts->mode_switch_type == SEQUENCE)
                     ts->ts_ops->mode_switch(ts->chip_data, MODE_NORMAL, true);
+<<<<<<< HEAD
                 if (ts->fp_enable == 1)
                     ts->fingerprint_underscreen_support = 1;
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
                 if (ts->fingerprint_underscreen_support)
                     ts->ts_ops->enable_fingerprint(ts->chip_data, !!ts->fp_enable);
                 if (((ts->gesture_enable & 0x01) != 1) && ts->ts_ops->enable_gesture_mask)
@@ -395,8 +401,11 @@ static void tp_geture_info_transform(struct gesture_info *gesture, struct resolu
 static void tp_gesture_handle(struct touchpanel_data *ts)
 {
     struct gesture_info gesture_info_temp;
+<<<<<<< HEAD
     bool enabled = false;
     int key = -1;
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
     if (!ts->ts_ops->get_gesture_info) {
         TPD_INFO("not support ts->ts_ops->get_gesture_info callback\n");
@@ -423,6 +432,7 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
              gesture_info_temp.gesture_type == FingerprintDown ? "(fingerprintdown)" :
              gesture_info_temp.gesture_type == FingerprintUp ? "(fingerprintup)" :
              gesture_info_temp.gesture_type == SingleTap ? "single tap" : "unknown");
+<<<<<<< HEAD
         switch (gesture_info_temp.gesture_type) {
         case DouTap:
             enabled = DouTap_enable;
@@ -477,6 +487,8 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
             key = KEY_GESTURE_W;
             break;
     }
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 #if GESTURE_COORD_GET
     if (ts->ts_ops->get_gesture_coord) {
         ts->ts_ops->get_gesture_coord(ts->chip_data, gesture_info_temp.gesture_type);
@@ -499,9 +511,15 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
         if(ts->geature_ignore)
             return;
 #endif
+<<<<<<< HEAD
         input_report_key(ts->input_dev, key, 1);
         input_sync(ts->input_dev);
         input_report_key(ts->input_dev, key, 0);
+=======
+        input_report_key(ts->input_dev, KEY_F4, 1);
+        input_sync(ts->input_dev);
+        input_report_key(ts->input_dev, KEY_F4, 0);
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
         input_sync(ts->input_dev);
     } else if (gesture_info_temp.gesture_type == FingerprintDown) {
         ts->fp_info.touch_state = 1;
@@ -1404,6 +1422,7 @@ int tp_control_reset_gpio(bool enable)
     return 0;
 }
 
+<<<<<<< HEAD
 int tp_control_cs_gpio(bool enable)
 {
     if (gpio_is_valid(g_tp->hw_res.tp_cs_gpio)) {
@@ -1414,6 +1433,8 @@ int tp_control_cs_gpio(bool enable)
 }
 EXPORT_SYMBOL(tp_control_cs_gpio);
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 /*
  * check_touchirq_triggered--used for stop system going sleep when touch irq is triggered
  * 1 if irq triggered, otherwise is 0
@@ -1506,6 +1527,71 @@ void switch_headset_state(int headset_state)
 }
 EXPORT_SYMBOL(switch_headset_state);
 
+<<<<<<< HEAD
+=======
+/*
+ *    gesture_enable = 0 : disable gesture
+ *    gesture_enable = 1 : enable gesture when ps is far away
+ *    gesture_enable = 2 : disable gesture when ps is near
+ *    gesture_enable = 3 : enable single tap gesture when ps is far away
+ */
+static ssize_t proc_gesture_control_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos)
+{
+    int value = 0;
+    char buf[4] = {0};
+    struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+    if (count > 2)
+        return count;
+    if (!ts)
+        return count;
+
+    if (copy_from_user(buf, buffer, count)) {
+        TPD_INFO("read proc input error.\n");
+        return count;
+    }
+    sscanf(buf, "%d", &value);
+    if (value > 3 || (ts->gesture_test_support && ts->gesture_test.flag))
+        return count;
+
+    mutex_lock(&ts->mutex);
+    if (ts->gesture_enable != value) {
+        ts->gesture_enable = value;
+        TPD_INFO("gesture_enable = %d, is_suspended = %d\n", ts->gesture_enable, ts->is_suspended);
+        if (ts->is_incell_panel && (ts->suspend_state == TP_RESUME_EARLY_EVENT || ts->disable_gesture_ctrl/* || get_lcd_status() > 0*/) && (ts->tp_resume_order == LCD_TP_RESUME)) {
+            TPD_INFO("tp will resume, no need mode_switch in incell panel\n"); /*avoid i2c error or tp rst pulled down in lcd resume*/
+        } else if (ts->is_suspended) {
+            if (ts->fingerprint_underscreen_support && ts->fp_enable && ts->ts_ops->enable_gesture_mask) {
+                ts->ts_ops->enable_gesture_mask(ts->chip_data, (ts->gesture_enable & 0x01) == 1);
+            } else {
+                operate_mode_switch(ts);
+            }
+        }
+    } else {
+        TPD_INFO("do not do same operator :%d\n", value);
+    }
+    mutex_unlock(&ts->mutex);
+
+    return count;
+}
+
+static ssize_t proc_gesture_control_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+    int ret = 0;
+    char page[PAGESIZE] = {0};
+    struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+    if (!ts)
+        return 0;
+
+    TPD_DEBUG("double tap enable is: %d\n", ts->gesture_enable);
+    ret = snprintf(page, PAGESIZE - 1, "%d\n", ts->gesture_enable);
+    ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
+
+    return ret;
+}
+
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 static ssize_t proc_coordinate_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
 {
     int ret = 0;
@@ -1526,6 +1612,16 @@ static ssize_t proc_coordinate_read(struct file *file, char __user *user_buf, si
     return ret;
 }
 
+<<<<<<< HEAD
+=======
+static const struct file_operations proc_gesture_control_fops = {
+    .write = proc_gesture_control_write,
+    .read  = proc_gesture_control_read,
+    .open  = simple_open,
+    .owner = THIS_MODULE,
+};
+
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 static const struct file_operations proc_coordinate_fops = {
     .read  = proc_coordinate_read,
     .open  = simple_open,
@@ -3092,6 +3188,7 @@ static const struct file_operations proc_oppo_apk_fops = {
 
 #endif //end of CONFIG_OPPO_TP_APK
 
+<<<<<<< HEAD
 #define GESTURE_ATTR(name, out) \
     static ssize_t name##_enable_read_func(struct file *file, char __user *user_buf, size_t count, loff_t *ppos) \
     { \
@@ -3141,6 +3238,8 @@ GESTURE_ATTR(letter_m, Mgestrue_enable);
 #define CREATE_GESTURE_NODE(NAME) \
     CREATE_PROC_NODE(prEntry_tp, NAME##_enable, 0666)
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 /**
  * init_touchpanel_proc - Using for create proc interface
  * @ts: touchpanel_data struct using for common driver
@@ -3216,6 +3315,7 @@ static int init_touchpanel_proc(struct touchpanel_data *ts)
 
     //proc files-step2-4:/proc/touchpanel/double_tap_enable (black gesture related interface)
     if (ts->black_gesture_support) {
+<<<<<<< HEAD
         CREATE_GESTURE_NODE(double_tap);
         CREATE_GESTURE_NODE(up_arrow);
         CREATE_GESTURE_NODE(down_arrow);
@@ -3229,6 +3329,13 @@ static int init_touchpanel_proc(struct touchpanel_data *ts)
         CREATE_GESTURE_NODE(letter_o);
         CREATE_GESTURE_NODE(letter_w);
         CREATE_GESTURE_NODE(letter_m);
+=======
+        prEntry_tmp = proc_create_data("double_tap_enable", 0666, prEntry_tp, &proc_gesture_control_fops, ts);
+        if (prEntry_tmp == NULL) {
+            ret = -ENOMEM;
+            TPD_INFO("Couldn't create proc entry\n");
+        }
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
         prEntry_tmp = proc_create_data("coordinate", 0444, prEntry_tp, &proc_coordinate_fops, ts);
         if (prEntry_tmp == NULL) {
             ret = -ENOMEM;
@@ -4621,6 +4728,7 @@ static int init_input_device(struct touchpanel_data *ts)
     set_bit(BTN_TOUCH, ts->input_dev->keybit);
     if (ts->black_gesture_support) {
         set_bit(KEY_F4, ts->input_dev->keybit);
+<<<<<<< HEAD
         set_bit(KEY_GESTURE_W, ts->input_dev->keybit);
         set_bit(KEY_GESTURE_M, ts->input_dev->keybit);
         set_bit(KEY_GESTURE_S, ts->input_dev->keybit);
@@ -4636,6 +4744,8 @@ static int init_input_device(struct touchpanel_data *ts)
         set_bit(KEY_GESTURE_SWIPE_RIGHT, ts->input_dev->keybit);
         set_bit(KEY_GESTURE_SWIPE_UP, ts->input_dev->keybit);
         set_bit(KEY_GESTURE_SINGLE_TAP, ts->input_dev->keybit);
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 #ifdef CONFIG_OPPO_TP_APK
         set_bit(KEY_POWER, ts->input_dev->keybit);
 #endif //end of CONFIG_OPPO_TP_APK
@@ -4798,6 +4908,7 @@ static void init_parse_dts(struct device *dev, struct touchpanel_data *ts)
     TPD_INFO("irq_gpio = %d, irq_flags = 0x%x, reset_gpio = %d\n",
 			ts->hw_res.irq_gpio, ts->irq_flags, ts->hw_res.reset_gpio);
 
+<<<<<<< HEAD
     // cs_gpio
     ts->hw_res.tp_cs_gpio = of_get_named_gpio(np, "cs-gpio", 0);
 	TPD_INFO("cs_gpio = %d\n", ts->hw_res.tp_cs_gpio);
@@ -4809,6 +4920,8 @@ static void init_parse_dts(struct device *dev, struct touchpanel_data *ts)
         TPD_INFO("ts->tp_cs-gpio not specified\n");
     }
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 #ifdef ODM_LQ_EDIT
 /* modify begin by zhangchaofan@ODM_LQ@Multimedia.TP, remove invalid dts 2019-12-09 */
 #if 0
@@ -5433,10 +5546,13 @@ int register_common_touch_device(struct touchpanel_data *pdata)
         invoke->async_work = tp_async_work_callback;
     }
 
+<<<<<<< HEAD
     if (gpio_is_valid(ts->hw_res.tp_cs_gpio)) {
         gpio_set_value(ts->hw_res.tp_cs_gpio, 1);
     }
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 #ifdef ODM_LQ_EDIT
 		/* modify begin by zhangchaofan@ODM_LQ@Multimedia.TP, for remove tp init power 2019-12-26 */
 #if 0
@@ -5751,7 +5867,11 @@ int register_common_touch_device(struct touchpanel_data *pdata)
     ts->loading_fw = false;
     ts->is_suspended = 0;
     ts->suspend_state = TP_SPEEDUP_RESUME_COMPLETE;
+<<<<<<< HEAD
     ts->gesture_enable = 1;
+=======
+    ts->gesture_enable = 0;
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
     ts->es_enable = 0;
     ts->fd_enable = 0;
     ts->fp_enable = 0;
@@ -6439,7 +6559,11 @@ bool is_oem_unlocked(void)
 int __init get_oem_verified_boot_state(void)
 {
     if (strstr(boot_command_line, "androidboot.verifiedbootstate=orange")) {
+<<<<<<< HEAD
         oem_verifiedbootstate = OEM_VERIFIED_BOOT_STATE_LOCKED;
+=======
+        oem_verifiedbootstate = OEM_VERIFIED_BOOT_STATE_UNLOCKED;
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
     } else {
         oem_verifiedbootstate = OEM_VERIFIED_BOOT_STATE_LOCKED;
     }

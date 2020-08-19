@@ -758,7 +758,6 @@ asmlinkage void bad_mode(struct pt_regs *regs, int reason, unsigned int esr)
 */
 	__show_regs(regs);
 
-<<<<<<< HEAD
 	info.si_signo = SIGILL;
 	info.si_errno = 0;
 	info.si_code  = ILL_ILLOPC;
@@ -774,8 +773,6 @@ asmlinkage void bad_mode(struct pt_regs *regs, int reason, unsigned int esr)
 	arm64_notify_die("Oops - bad mode", regs, &info, 0);
 #else
 	die("Oops - bad mode", regs, 0);
-=======
->>>>>>> f21624cde598d70f5a7124736eb52b4634e54643
 	local_irq_disable();
 	panic("bad mode");
 #endif
@@ -1010,13 +1007,6 @@ static struct break_hook refcount_break_hook = {
 /* This registration must happen early, before debug_traps_init(). */
 void __init trap_init(void)
 {
-<<<<<<< HEAD
 	register_kernel_break_hook(&bug_break_hook);
 	register_kernel_break_hook(&refcount_break_hook);
-=======
-	register_break_hook(&bug_break_hook);
-#ifdef CONFIG_KASAN_SW_TAGS
-	register_break_hook(&kasan_break_hook);
-#endif
->>>>>>> f21624cde598d70f5a7124736eb52b4634e54643
 }

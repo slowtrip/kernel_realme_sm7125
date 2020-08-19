@@ -69,6 +69,70 @@ static const struct drm_prop_enum_list e_qsync_mode[] = {
 	{SDE_RM_QSYNC_ONE_SHOT_MODE,	"one_shot"},
 };
 
+#ifndef VENDOR_EDIT
+/* Hujie@PSW.MM.Display.LCD.Stable,2019-07-16 Add for global hightlight mode */
+extern u8 readvalue;
+extern int dsi_display_read_panel_reg_for_highlight(struct dsi_display *display,u8 cmd, void *data, size_t len);
+static int readcount = 0;
+#endif
+
+#ifdef VENDOR_EDIT
+static int backlight_remapping_into_tddic_reg(int level_brightness, struct dsi_display *display)
+{
+    int level_temp, value_a, value_b;
+    int level = level_brightness;
+    if ( level > 0) {
+        if (display->panel->bl_config.bl_map) {
+            if (level%32 > 0)
+                level_temp = level/32 + 1;
+            else
+                level_temp = level/32;
+
+            level_temp = level_temp - 1;
+
+            if((level_temp*2 + 1) > display->panel->bl_config.bl_map_size) {
+                pr_err(" %s INVALID brightness level,return bl_max_level = %d\n", __func__, display->panel->bl_config.bl_max_level);
+                return display->panel->bl_config.bl_max_level;
+            }
+
+            value_a = display->panel->bl_config.bl_map[level_temp*2];
+            value_b = display->panel->bl_config.bl_map[level_temp*2 + 1];
+
+            #ifndef ODM_LQ_EDIT
+            /*zengjianxiong@ODM_LQ@Multimedia.Dispaly,2020/01/04,modified for set min brightness about 2nit*/
+            if (level <= 383)
+                level = value_a*level/100 + value_b;
+            else
+                level = value_a*level/100 - value_b;
+            #else /*ODM_LQ_EDIT*/
+            if(level<=20)
+                level = level*5/7+8;
+            else if(20<level && level<= 383)
+                level = value_a*level/100 + value_b;
+            else
+                level = value_a*level/100 - value_b;
+            #endif/*ODM_LQ_EDIT*/
+
+
+            pr_debug(" %s value_a %d value_b %d   level_brightness %d -> level %lld\n", __func__, value_a, value_b, level_brightness, level);
+
+            if (level < 0) {
+                pr_err(" %s backlight value had been converted into a minus type = %d\n", __func__, level);
+                return 0;
+            }
+        }
+
+        if (level < display->panel->bl_config.bl_min_level)
+            level = display->panel->bl_config.bl_min_level;
+        if (level > display->panel->bl_config.bl_max_level)
+            level = display->panel->bl_config.bl_max_level;
+        return level;
+    }
+
+    return 0;
+}
+#endif
+
 static int sde_backlight_device_update_status(struct backlight_device *bd)
 {
 	int brightness;
@@ -514,10 +578,27 @@ static int _sde_connector_update_bl_scale(struct sde_connector *c_conn)
 
 	mutex_lock(&bd->update_lock);
 #endif /* VENDOR_EDIT */
+<<<<<<< HEAD
 
 	bl_config = &dsi_display->panel->bl_config;
 	
 	if (!c_conn->allow_bl_update) {
+=======
+
+	bl_config = &dsi_display->panel->bl_config;
+
+#ifdef VENDOR_EDIT
+		/*liping-m@PSW.MM.Display.LCD.Stable,2019/6/25 fix bug2087450 hbm backlight problem */
+		if(bl_config->bl_level > 1023){
+			c_conn->unset_bl_level = bl_config->bl_level;
+			mutex_unlock(&bd->update_lock);
+			return 0;
+		}
+#endif /* VENDOR_EDIT */
+
+	if (dsi_display->panel->bl_config.bl_update ==
+		BL_UPDATE_DELAY_UNTIL_FIRST_FRAME && !c_conn->allow_bl_update) {
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 		c_conn->unset_bl_level = bl_config->bl_level;
 #ifdef VENDOR_EDIT
 /*Gou shengjun@PSW.MM.Display.LCD.Stable,2019-03-7 fix backlight race problem */
@@ -585,6 +666,38 @@ void sde_connector_set_qsync_params(struct drm_connector *connector)
 	return 0;
 }
 
+<<<<<<< HEAD
+=======
+#ifdef VENDOR_EDIT
+/* Gou shengjun@PSW.MM.Display.Service.Feature,2018/11/21
+ * For OnScreenFingerprint feature
+*/
+extern bool sde_crtc_get_fingerprint_mode(struct drm_crtc_state *crtc_state);
+extern bool sde_crtc_get_fingerprint_pressed(struct drm_crtc_state *crtc_state);
+extern int oppo_display_get_hbm_mode(void);
+extern int sde_crtc_set_onscreenfinger_defer_sync(struct drm_crtc_state *crtc_state, bool defer_sync);
+extern int oppo_dimlayer_bl;
+extern int oppo_dimlayer_bl_enable_real;
+extern int oppo_dimlayer_bl_enable;
+extern int oppo_dimlayer_bl_enabled;
+extern int oppo_dimlayer_bl_delay;
+extern int oppo_dimlayer_bl_delay_after;
+
+int sde_connector_update_backlight(struct drm_connector *connector)
+{
+	if (oppo_dimlayer_bl != oppo_dimlayer_bl_enabled) {
+		struct sde_connector *c_conn = to_sde_connector(connector);
+
+		oppo_dimlayer_bl_enabled = oppo_dimlayer_bl;
+		usleep_range(oppo_dimlayer_bl_delay, oppo_dimlayer_bl_delay + 100);
+		_sde_connector_update_bl_scale(c_conn);
+		usleep_range(oppo_dimlayer_bl_delay_after, oppo_dimlayer_bl_delay_after + 100);
+	}
+
+	return 0;
+}
+
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 int sde_connector_update_hbm(struct drm_connector *connector)
 {
 	struct sde_connector *c_conn = to_sde_connector(connector);
@@ -2553,10 +2666,86 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 			sde_connector_handle_disp_recovery,
 			c_conn);
 
+<<<<<<< HEAD
 	rc = _sde_connector_install_properties(dev, sde_kms, c_conn,
 		connector_type, display, &display_info);
 	if (rc)
 		goto error_cleanup_fence;
+=======
+	msm_property_install_volatile_range(
+			&c_conn->property_info, "sde_drm_roi_v1", 0x0,
+			0, ~0, 0, CONNECTOR_PROP_ROI_V1);
+
+	/* install PP_DITHER properties */
+	_sde_connector_install_dither_property(dev, sde_kms, c_conn);
+
+	if (connector_type == DRM_MODE_CONNECTOR_DisplayPort) {
+		struct drm_msm_ext_hdr_properties hdr = {0};
+
+		c_conn->hdr_capable = true;
+
+		msm_property_install_blob(&c_conn->property_info,
+				"ext_hdr_properties",
+				DRM_MODE_PROP_IMMUTABLE,
+				CONNECTOR_PROP_EXT_HDR_INFO);
+
+		/* set default values to avoid reading uninitialized data */
+		msm_property_set_blob(&c_conn->property_info,
+			      &c_conn->blob_ext_hdr,
+			      &hdr,
+			      sizeof(hdr),
+			      CONNECTOR_PROP_EXT_HDR_INFO);
+	}
+
+	msm_property_install_volatile_range(&c_conn->property_info,
+		"hdr_metadata", 0x0, 0, ~0, 0, CONNECTOR_PROP_HDR_METADATA);
+
+	msm_property_install_volatile_range(&c_conn->property_info,
+		"RETIRE_FENCE", 0x0, 0, ~0, 0, CONNECTOR_PROP_RETIRE_FENCE);
+
+	msm_property_install_range(&c_conn->property_info, "autorefresh",
+			0x0, 0, AUTOREFRESH_MAX_FRAME_CNT, 0,
+			CONNECTOR_PROP_AUTOREFRESH);
+
+	if (connector_type == DRM_MODE_CONNECTOR_DSI &&
+			sde_kms->catalog->has_qsync &&
+			display_info.qsync_min_fps)
+		msm_property_install_enum(&c_conn->property_info, "qsync_mode",
+				0, 0, e_qsync_mode, ARRAY_SIZE(e_qsync_mode),
+				CONNECTOR_PROP_QSYNC_MODE);
+
+	msm_property_install_range(&c_conn->property_info, "bl_scale",
+		0x0, 0, MAX_BL_SCALE_LEVEL, MAX_BL_SCALE_LEVEL,
+		CONNECTOR_PROP_BL_SCALE);
+
+	msm_property_install_range(&c_conn->property_info, "ad_bl_scale",
+		0x0, 0, MAX_AD_BL_SCALE_LEVEL, MAX_AD_BL_SCALE_LEVEL,
+		CONNECTOR_PROP_AD_BL_SCALE);
+#ifdef VENDOR_EDIT
+/* Gou shengjun@PSW.MM.Display.LCD.Feature,2018-11-21
+ * Support custom propertys
+*/
+	msm_property_install_range(&c_conn->property_info,"CONNECTOR_CUST",
+		0x0, 0, INT_MAX, 0, CONNECTOR_PROP_CUSTOM);
+#endif
+	c_conn->bl_scale_dirty = false;
+	c_conn->bl_scale = MAX_BL_SCALE_LEVEL;
+	c_conn->bl_scale_ad = MAX_AD_BL_SCALE_LEVEL;
+
+	/* enum/bitmask properties */
+	msm_property_install_enum(&c_conn->property_info, "topology_name",
+			DRM_MODE_PROP_IMMUTABLE, 0, e_topology_name,
+			ARRAY_SIZE(e_topology_name),
+			CONNECTOR_PROP_TOPOLOGY_NAME);
+	msm_property_install_enum(&c_conn->property_info, "topology_control",
+			0, 1, e_topology_control,
+			ARRAY_SIZE(e_topology_control),
+			CONNECTOR_PROP_TOPOLOGY_CONTROL);
+	msm_property_install_enum(&c_conn->property_info, "LP",
+			0, 0, e_power_mode,
+			ARRAY_SIZE(e_power_mode),
+			CONNECTOR_PROP_LP);
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 	rc = msm_property_install_get_status(&c_conn->property_info);
 	if (rc) {

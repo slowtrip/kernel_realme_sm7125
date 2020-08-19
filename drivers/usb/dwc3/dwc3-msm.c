@@ -3841,6 +3841,13 @@ static int dwc_dpdm_cb(struct notifier_block *nb, unsigned long evt, void *p)
 				dwc3_drd_state_string(mdwc->drd_state));
 		if (mdwc->drd_state == DRD_STATE_UNDEFINED)
 			queue_delayed_work(mdwc->sm_usb_wq, &mdwc->sm_work, 0);
+
+#ifndef VENDOR_EDIT
+/*LiYue@BSP.CHG.Basic, 2019/08/19, modify for ssusb can not in low power mode*/
+			schedule_delayed_work(&mdwc->sm_work, 0);
+#else
+			queue_delayed_work(mdwc->sm_usb_wq, &mdwc->sm_work, 0);
+#endif
 		break;
 	default:
 		dev_dbg(mdwc->dev, "%s: unknown event state:%s\n", __func__,

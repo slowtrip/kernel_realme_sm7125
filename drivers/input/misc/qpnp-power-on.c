@@ -43,6 +43,14 @@
 #include <uapi/linux/sched/types.h>
 #endif
 
+#ifdef VENDOR_EDIT //YiXue.Ge@PSW.BSP.Kernel.Stablity, 2018-10-26 add for enable pmic wd
+#include <linux/kthread.h>
+#include <linux/rtc.h>
+#include <linux/proc_fs.h>
+#include <linux/mutex.h>
+#include <uapi/linux/sched/types.h>
+#endif
+
 #define PMIC_VER_8941				0x01
 #define PMIC_VERSION_REG			0x0105
 #define PMIC_VERSION_REV4_REG			0x0103
@@ -232,7 +240,15 @@ struct qpnp_pon {
 	struct mutex		restore_lock;
 	struct delayed_work	bark_work;
 	struct dentry		*debugfs;
+<<<<<<< HEAD
 	struct device_node	*pbs_dev_node;
+=======
+#ifdef VENDOR_EDIT //YiXue.Ge@PSW.BSP.Kernel.Stablity, 2018-10-26 add for enable pmic wd
+	struct task_struct *wd_task;
+	struct mutex		wd_task_mutex;
+	unsigned int		pmicwd_state;//|reserver|rst type|timeout|enable|
+#endif
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	u16			base;
 	u8			subtype;
 	u8			pon_ver;

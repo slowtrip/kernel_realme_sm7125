@@ -40,6 +40,12 @@
 #include <soc/oppo/oppo_healthinfo.h>
 #endif /*VENDOR_EDIT*/
 
+#if defined(VENDOR_EDIT) && defined(CONFIG_OPPO_HEALTHINFO)
+// wenbin.liu@PSW.BSP.MM, 2018/08/06
+// Add for record emmc  driver iowait
+#include <soc/oppo/oppo_healthinfo.h>
+#endif /*VENDOR_EDIT*/
+
 #define DCMD_SLOT 31
 #define NUM_SLOTS 32
 

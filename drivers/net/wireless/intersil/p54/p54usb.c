@@ -941,16 +941,25 @@ static void p54u_load_firmware_cb(const struct firmware *firmware,
 	 * the "priv" context. Do not use it anymore!
 	 */
 	priv = NULL;
+<<<<<<< HEAD
 
 	if (err) {
 		dev_err(&intf->dev, "failed to initialize device (%d)\n", err);
 
+=======
+	if (err) {
+		dev_err(&intf->dev, "failed to initialize device (%d)\n", err);
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 		usb_lock_device(udev);
 		usb_driver_release_interface(&p54u_driver, intf);
 		usb_unlock_device(udev);
 	}
 
+<<<<<<< HEAD
 	usb_put_intf(intf);
+=======
+	usb_put_dev(intf);
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 }
 
 static int p54u_load_firmware(struct ieee80211_hw *dev,
@@ -1050,8 +1059,13 @@ static int p54u_probe(struct usb_interface *intf,
 		priv->upload_fw = p54u_upload_firmware_net2280;
 	}
 	err = p54u_load_firmware(dev, intf);
+<<<<<<< HEAD
 	if (err)
 		p54_free_common(dev);
+=======
+	p54_free_common(dev);
+
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	return err;
 }
 

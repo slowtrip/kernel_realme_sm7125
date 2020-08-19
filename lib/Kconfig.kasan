@@ -14,32 +14,13 @@ config CC_HAS_KASAN_SW_TAGS
 	def_bool HAVE_ARCH_KASAN_SW_TAGS
 
 config KASAN
-	bool "KASAN: runtime memory debugger"
-	depends on (HAVE_ARCH_KASAN && CC_HAS_KASAN_GENERIC) || \
-		   (HAVE_ARCH_KASAN_SW_TAGS && CC_HAS_KASAN_SW_TAGS)
-	depends on (SLUB && SYSFS) || (SLAB && !DEBUG_SLAB)
-	help
-	  Enables KASAN (KernelAddressSANitizer) - runtime memory debugger,
-	  designed to find out-of-bounds accesses and use-after-free bugs.
-	  See Documentation/dev-tools/kasan.rst for details.
-
-choice
-	prompt "KASAN mode"
-	depends on KASAN
-	default KASAN_GENERIC
-	help
-	  KASAN has two modes: generic KASAN (similar to userspace ASan,
-	  x86_64/arm64/xtensa, enabled with CONFIG_KASAN_GENERIC) and
-	  software tag-based KASAN (a version based on software memory
-	  tagging, arm64 only, similar to userspace HWASan, enabled with
-	  CONFIG_KASAN_SW_TAGS).
-	  Both generic and tag-based KASAN are strictly debugging features.
-
-config KASAN_GENERIC
-	bool "Generic mode"
-	depends on HAVE_ARCH_KASAN && CC_HAS_KASAN_GENERIC
-	depends on (SLUB && SYSFS) || (SLAB && !DEBUG_SLAB)
-	select SLUB_DEBUG if SLUB
+	bool "KASan: runtime memory debugger"
+	depends on SLUB || (SLAB && !DEBUG_SLAB)
+	#ifdef VENDOR_EDIT
+	#Wen.Luo@Bsp.Kernel.Stability, 2018/12/05, OPPO_KASAN_CONFIG
+	default y if OPPO_KASAN_TEST = "true"
+	default n
+	#endif
 	select CONSTRUCTORS
 	select STACKDEPOT
 	help
@@ -83,7 +64,12 @@ endchoice
 choice
 	prompt "Instrumentation type"
 	depends on KASAN
+	#ifdef VENDOR_EDIT
+	#Wen.Luo@Bsp.Kernel.Stability, 2018/12/05, #OPPO_KASAN_CONFIG
+	#default KASAN_INLINE
+	#else
 	default KASAN_OUTLINE
+	#endif
 
 config KASAN_OUTLINE
 	bool "Outline instrumentation"

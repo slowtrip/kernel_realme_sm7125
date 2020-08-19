@@ -37,12 +37,21 @@
 #include <linux/ktime.h>
 #ifdef VENDOR_EDIT
 /* Yichun.Chen  PSW.BSP.CHG  for charge */
+<<<<<<< HEAD
 #include "../../../../drivers/power/supply/qcom/smb5-reg.h"
 #include "../../../../drivers/power/supply/qcom/battery.h"
 #include "../../../../drivers/power/supply/qcom/schgm-flash.h"
 #include "../../../../drivers/power/supply/qcom/step-chg-jeita.h"
 #include "../../../../drivers/power/supply/qcom/storm-watch.h"
 #include "../../../../drivers/power/supply/qcom/schgm-flash.h"
+=======
+#include "../../../../kernel/msm-4.14/drivers/power/supply/qcom/smb5-reg.h"
+#include "../../../../kernel/msm-4.14/drivers/power/supply/qcom/battery.h"
+#include "../../../../kernel/msm-4.14/drivers/power/supply/qcom/schgm-flash.h"
+#include "../../../../kernel/msm-4.14/drivers/power/supply/qcom/step-chg-jeita.h"
+#include "../../../../kernel/msm-4.14/drivers/power/supply/qcom/storm-watch.h"
+#include "../../../../kernel/msm-4.14/drivers/power/supply/qcom/schgm-flash.h"
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 #include <soc/oppo/boot_mode.h>
 #include <soc/oppo/device_info.h>

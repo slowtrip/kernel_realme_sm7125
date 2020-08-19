@@ -79,7 +79,11 @@ static fw_update_state nvt_fw_update_sub(void *chip_data, const struct firmware 
 static fw_update_state nvt_fw_update(void *chip_data, const struct firmware *fw, bool force);
 static int nvt_reset(void *chip_data);
 static int nvt_get_chip_info(void *chip_data);
+<<<<<<< HEAD
 extern int tp_control_cs_gpio(bool enable);
+=======
+
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 static struct chip_data_nt36672c *g_chip_info = NULL;
 static size_t fw_need_write_size = 0;
 
@@ -5576,7 +5580,10 @@ static int nvt_tp_probe(struct spi_device *client)
 #ifdef CONFIG_OPPO_TP_APK
     nova_init_oppo_apk_op(ts);
 #endif // end of CONFIG_OPPO_TP_APK
+<<<<<<< HEAD
     tp_control_cs_gpio(true);
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 #if NVT_PM_WAIT_SPI_RESUME_COMPLETION
 	ts->dev_pm_suspend = false;

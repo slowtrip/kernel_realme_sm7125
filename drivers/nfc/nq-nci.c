@@ -41,6 +41,28 @@ static const struct of_device_id msm_match_table[] = {
 
 MODULE_DEVICE_TABLE(of, msm_match_table);
 
+<<<<<<< HEAD
+=======
+#define DEV_COUNT	1
+#define DEVICE_NAME	"nq-nci"
+#define CLASS_NAME	"nqx"
+#define MAX_BUFFER_SIZE			(320)
+#define WAKEUP_SRC_TIMEOUT		(2000)
+#define MAX_RETRY_COUNT			3
+#define NCI_RESET_CMD_LEN		4
+#define NCI_RESET_RSP_LEN		4
+#define NCI_RESET_NTF_LEN		13
+#define NCI_GET_VERSION_CMD_LEN		8
+#define NCI_GET_VERSION_RSP_LEN		12
+#define MAX_IRQ_WAIT_TIME		(90)	//in ms
+
+#ifdef VENDOR_EDIT
+//Weiwei.Deng@CN.NFC.Basic.Hardware.1209105, 2019/04/25,
+//Modify for : send get firmware version
+#define NCI_GET_FW_CMD_LEN       8
+#define NCI_GET_FW_RSP_LEN       14
+#endif /* VENDOR_EDIT */
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 struct nqx_dev {
 	wait_queue_head_t	read_wq;
 	struct	mutex		read_mutex;
@@ -158,6 +180,7 @@ static irqreturn_t nqx_dev_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+<<<<<<< HEAD
 static int is_data_available_for_read(struct nqx_dev *nqx_dev)
 {
 	int ret;
@@ -167,6 +190,24 @@ static int is_data_available_for_read(struct nqx_dev *nqx_dev)
 		!nqx_dev->irq_enabled, msecs_to_jiffies(MAX_IRQ_WAIT_TIME));
 	return ret;
 }
+=======
+#ifdef VENDOR_EDIT
+//Dongdong.Chang@CN.NFC.Basic.Hardware.2084619, 2019/04/25,
+//add spi ven flag and protect the access to it
+static void sn100_access_lock(struct nqx_dev *nqx_dev)
+{
+    pr_info("%s: Enter\n", __func__);
+    mutex_lock(&nqx_dev->spi_mutex);
+    pr_info("%s: Exit\n", __func__);
+}
+static void sn100_access_unlock(struct nqx_dev *nqx_dev)
+{
+    pr_info("%s: Enter\n", __func__);
+    mutex_unlock(&nqx_dev->spi_mutex);
+    pr_info("%s: Exit\n", __func__);
+}
+#endif /* VENDOR_EDIT */
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 static ssize_t nfc_read(struct file *filp, char __user *buf,
 					size_t count, loff_t *offset)
@@ -1051,7 +1092,16 @@ err_nfcc_hw_info:
 static int nfcc_hw_check(struct i2c_client *client, struct nqx_dev *nqx_dev)
 {
 	int ret = 0;
+<<<<<<< HEAD
 3
+=======
+
+	int gpio_retry_count = 0;
+#ifndef VENDOR_EDIT
+//Weiwei.Deng@CN.NFC.Basic.Hardware.1209105, 2019/04/25,
+//Modify for : send get firmware version
+	unsigned char reset_ntf_len = 0;
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	unsigned int enable_gpio = nqx_dev->en_gpio;
 	char *nci_reset_cmd = NULL;
 	char *nci_reset_rsp = NULL;
@@ -1076,6 +1126,21 @@ static int nfcc_hw_check(struct i2c_client *client, struct nqx_dev *nqx_dev)
 		goto done;
 	}
 
+<<<<<<< HEAD
+=======
+	nci_reset_ntf = kzalloc(NCI_RESET_NTF_LEN + 1,  GFP_DMA | GFP_KERNEL);
+	#ifndef VENDOR_EDIT
+	//Yukun.Wang@CN.NFC.Basic.Hardware.2046983, 2019/09/09,
+	//Fix qualcomm's source code issue
+	if (!nci_reset_rsp) {
+	#else
+	if (!nci_reset_ntf) {
+	#endif /* VENDOR_EDIT */
+		ret = -ENOMEM;
+		goto done;
+	}
+
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	nci_get_version_cmd = kzalloc(NCI_GET_VERSION_CMD_LEN + 1,
 					GFP_DMA | GFP_KERNEL);
 	if (!nci_get_version_cmd) {
@@ -1159,7 +1224,13 @@ static int nfcc_hw_check(struct i2c_client *client, struct nqx_dev *nqx_dev)
 		}
 		goto err_nfcc_reset_failed;
 	}
+<<<<<<< HEAD
 	ret = is_data_available_for_read(nqx_dev);
+=======
+	nqx_enable_irq(nqx_dev);
+	ret = wait_event_interruptible_timeout(nqx_dev->read_wq,
+		!nqx_dev->irq_enabled, msecs_to_jiffies(MAX_IRQ_WAIT_TIME));
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	if (ret <= 0) {
 		nqx_disable_irq(nqx_dev);
 		goto err_nfcc_hw_check;
@@ -1172,12 +1243,20 @@ static int nfcc_hw_check(struct i2c_client *client, struct nqx_dev *nqx_dev)
 		"%s: - i2c_master_recv get RESET rsp header Error\n", __func__);
 		goto err_nfcc_hw_check;
 	}
+<<<<<<< HEAD
 
 	ret = i2c_master_recv(client, &nci_reset_rsp[NCI_PAYLOAD_START_INDEX],
 				nci_reset_rsp[NCI_PAYLOAD_LENGTH_INDEX]);
 	if (ret != nci_reset_rsp[NCI_PAYLOAD_LENGTH_INDEX]) {
 		dev_err(&client->dev,
 		"%s: - i2c_master_recv get RESET rsp data Error\n", __func__);
+=======
+	nqx_enable_irq(nqx_dev);
+	ret = wait_event_interruptible_timeout(nqx_dev->read_wq,
+		!nqx_dev->irq_enabled, msecs_to_jiffies(MAX_IRQ_WAIT_TIME));
+	if (ret <= 0) {
+		nqx_disable_irq(nqx_dev);
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 		goto err_nfcc_hw_check;
 	}
 

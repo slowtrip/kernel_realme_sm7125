@@ -1140,6 +1140,7 @@ static int smb1390_get_prop(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_CP_ISNS:
+<<<<<<< HEAD
 		rc = smb1390_get_isns_master(chip, val);
 		if (!rc)
 			chip->cp_isns_master = val->intval;
@@ -1148,6 +1149,9 @@ static int smb1390_get_prop(struct power_supply *psy,
 		rc = smb1390_get_isns_slave(chip, val);
 		if (!rc)
 			chip->cp_isns_slave = val->intval;
+=======
+		rc = smb1390_get_isns(chip, val);
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 		break;
 	case POWER_SUPPLY_PROP_CP_TOGGLE_SWITCHER:
 		val->intval = 0;
@@ -1163,9 +1167,16 @@ static int smb1390_get_prop(struct power_supply *psy,
 			val->intval |= status;
 		break;
 	case POWER_SUPPLY_PROP_CP_ILIM:
+<<<<<<< HEAD
 		rc = smb1390_get_cp_ilim(chip, val);
 		if (!rc)
 			chip->cp_ilim = val->intval;
+=======
+		rc = smb1390_read(chip, CORE_FTRIM_ILIM_REG, &status);
+		if (!rc)
+			val->intval = ((status & CFG_ILIM_MASK) * 100000)
+					+ 500000;
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 		break;
 	case POWER_SUPPLY_PROP_CHIP_VERSION:
 		val->intval = chip->pmic_rev_id->rev4;

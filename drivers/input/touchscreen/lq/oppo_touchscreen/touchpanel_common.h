@@ -69,6 +69,7 @@
 #define FingerprintUp       15
 #define SingleTap           16
 
+<<<<<<< HEAD
 #define KEY_GESTURE_W               246
 #define KEY_GESTURE_M               247
 #define KEY_GESTURE_S               248
@@ -85,6 +86,8 @@
 #define KEY_GESTURE_SWIPE_UP        KEY_F8
 #define KEY_GESTURE_SINGLE_TAP      KEY_F9
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 #define FINGERPRINT_DOWN_DETECT 0X0f
 #define FINGERPRINT_UP_DETECT 0X1f
 
@@ -316,7 +319,11 @@ struct hw_resource {
     int id1_gpio;
     int id2_gpio;
     int id3_gpio;
+<<<<<<< HEAD
     int tp_cs_gpio;
+=======
+
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
     int irq_gpio;                                   /*irq GPIO num*/
     int reset_gpio;                                 /*Reset GPIO*/
 

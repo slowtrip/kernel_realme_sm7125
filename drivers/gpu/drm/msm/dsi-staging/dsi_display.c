@@ -57,6 +57,30 @@ extern int lcd_closebl_flag_fp;
 extern bool oppo_ffl_trigger_finish;
 #endif
 
+#ifdef VENDOR_EDIT
+/* Gou shengjun@PSW.MM.Display.Lcd.Stability, 2018-05-31
+ * add for drm notifier for display connect
+*/
+//#include <linux/oppo_mm_kevent_fb.h>
+#include <linux/msm_drm_notify.h>
+#include <linux/notifier.h>
+
+/* hujie@PSW.MM.Display.Lcd.Stability, 2019-06-15, add for Mipi clock link*/
+extern struct kobject *oppo_display_kobj;
+
+extern int msm_drm_notifier_call_chain(unsigned long val, void *v);
+extern int oppo_dsi_update_seed_mode(void);
+/* Don't panic if smmu fault*/
+extern int sde_kms_set_smmu_no_fatal_faults(struct drm_device *drm);
+
+/* Add for solve sau issue*/
+extern int lcd_closebl_flag;
+/* Add for fingerprint silence*/
+extern int lcd_closebl_flag_fp;
+/* Add for ffl feature */
+extern bool oppo_ffl_trigger_finish;
+#endif
+
 #define to_dsi_display(x) container_of(x, struct dsi_display, host)
 #define INT_BASE_10 10
 #define NO_OVERRIDE -1
@@ -1314,25 +1338,6 @@ int dsi_display_set_power(struct drm_connector *connector,
 	return rc;
 }
 #endif /*VENDOR_EDIT*/
-
-#ifdef CONFIG_DEBUG_FS
-static bool dsi_display_is_te_based_esd(struct dsi_display *display)
-{
-	u32 status_mode = 0;
-
-	if (!display->panel) {
-		pr_err("Invalid panel data\n");
-		return false;
-	}
-
-	status_mode = display->panel->esd_config.status_mode;
-
-	if (status_mode == ESD_MODE_PANEL_TE &&
-				gpio_is_valid(display->disp_te_gpio))
-		return true;
-
-	return false;
-}
 
 static ssize_t debugfs_dump_info_read(struct file *file,
 				      char __user *user_buf,
@@ -5876,9 +5881,22 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, display);
 
-	rc = dsi_display_init(display);
-	if (rc)
-		goto end;
+#ifdef VENDOR_EDIT
+/* Gou shengjun@PSW.MM.Display.Lcd.Stability, 2018-05-31
+ * add for drm notifier for display connect
+*/
+	if (!strcmp(dsi_type, "primary"))
+			primary_display = display;
+		else
+			secondary_display = display;
+#endif /* VENDOR_EDIT */
+
+	/* initialize display in firmware callback */
+	if (!firm_req) {
+		rc = dsi_display_init(display);
+		if (rc)
+			goto end;
+	}
 
 	return 0;
 end:

@@ -87,11 +87,6 @@ static ktime_t reset_time;
 static spinlock_t statistics_lock;
 #endif /* VENDOR_EDIT */
 
-#ifndef CONFIG_SUSPEND
-suspend_state_t pm_suspend_target_state;
-#define pm_suspend_target_state	(PM_SUSPEND_ON)
-#endif
-
 /*
  * If set, the suspend/hibernate code will abort transitions to a sleep state
  * if wakeup events are registered during or immediately before the transition.
@@ -1069,7 +1064,18 @@ void pm_system_irq_wakeup(unsigned int irq_number)
 
 			pr_warn("%s: %d triggered %s\n", __func__,
 					irq_number, name);
-
+			#ifdef VENDOR_EDIT
+			log_wakeup_reason(irq_number);
+			#endif
+            #ifdef VENDOR_EDIT
+            //Nanwei.Deng@BSP.Power.Basic, 2018/04/28, add for analysis power coumption.
+			if(irq_number == WAKEUP_SOURCE_KPDPWR) {
+                wakeup_source_count_kpdpwr++;
+            }
+			if(irq_number == WAKEUP_SOURCE_PMIC_ALARM) {
+                wakeup_source_count_pmic_rtc++;
+            }
+			#endif
 		}
 		pm_wakeup_irq = irq_number;
 		pm_system_wakeup();

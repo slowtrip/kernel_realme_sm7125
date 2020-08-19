@@ -136,8 +136,12 @@ void npu_mem_write(struct npu_device *npu_dev, void *dst, void *src,
 			dst_off += 1;
 		}
 	}
+<<<<<<< HEAD
 
 	__iowmb();
+=======
+        __iowmb();
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 }
 
 int32_t npu_mem_read(struct npu_device *npu_dev, void *src, void *dst,

@@ -1360,8 +1360,12 @@ static void f2fs_put_super(struct super_block *sb)
 	int i;
 	bool dropped;
 
-	/* unregister procfs/sysfs entries in advance to avoid race case */
-	f2fs_unregister_sysfs(sbi);
+#ifdef VENDOR_EDIT
+/*shifei.ge@TECH.Storage.FS, 2019-10-15, add for oDiscard */
+	spin_lock(&sb_list_lock);
+	list_del(&sbi->sbi_list);
+	spin_unlock(&sb_list_lock);
+#endif
 
 	f2fs_quota_off_umount(sb);
 
@@ -1824,7 +1828,8 @@ static void default_options(struct f2fs_sb_info *sbi)
 	set_opt(sbi, NOHEAP);
 	sbi->sb->s_flags |= MS_LAZYTIME;
 	clear_opt(sbi, DISABLE_CHECKPOINT);
-	F2FS_OPTION(sbi).unusable_cap = 0;
+#ifndef VENDOR_EDIT
+/* guoweichao@TECH.Storage.FS.oF2FS, 2019/08/15, no need to flush_merge as we have reduced most flushes. */
 	set_opt(sbi, FLUSH_MERGE);
 #endif
 	set_opt(sbi, DISCARD);
@@ -4197,15 +4202,30 @@ static int __init init_f2fs_fs(void)
 	err = f2fs_init_post_read_processing();
 	if (err)
 		goto free_root_stats;
-	err = f2fs_init_bio_entry_cache();
-	if (err)
-		goto free_post_read;
-	err = f2fs_init_bioset();
-	if (err)
-		goto free_bio_enrty_cache;
-	err = f2fs_init_compress_mempool();
-	if (err)
-		goto free_bioset;
+#ifdef VENDOR_EDIT
+/*shifei.ge@PSW.BSP.Kernal.Storage, 2019-08-14, add for oDiscard */
+	//if (f2fs_odiscard_enable) {
+		spin_lock_init(&sb_list_lock);
+		odc_wakeup_interval = timespec_to_jiffies(&ts);
+		memset(&f2fs_device, 0, sizeof(struct f2fs_device_state));
+#if defined(CONFIG_DRM_MSM)
+		err = msm_drm_register_client(&f2fs_fb_notify_block);
+		if (err) {
+			printk("%s error: register notifier failed,drm!\n", __func__);
+		}
+#elif defined(CONFIG_FB)
+		err = fb_register_client(&f2fs_fb_notify_block);
+		if (err) {
+			printk("%s error: register notifier failed!\n", __func__);
+		}
+#endif
+		err = power_supply_reg_notifier(&f2fs_battery_notify_block);
+		if (err) {
+			printk("%s error: register notifier failed!\n", __func__);
+		}
+	//}
+#endif
+
 	return 0;
 free_bioset:
 	f2fs_destroy_bioset();
@@ -4236,9 +4256,26 @@ fail:
 
 static void __exit exit_f2fs_fs(void)
 {
-	f2fs_destroy_compress_mempool();
-	f2fs_destroy_bioset();
-	f2fs_destroy_bio_entry_cache();
+#ifdef VENDOR_EDIT
+/*shifei.ge@TECH.Storage.FS, 2019-08-14, add for oDiscard */
+	//if (f2fs_odiscard_enable) {
+		int err = 0;
+#if defined(CONFIG_DRM_MSM)
+		err = msm_drm_unregister_client(&f2fs_fb_notify_block);
+		if (err) {
+			printk("%s error: unregister notifier failed,drm!\n", __func__);
+		}
+#elif defined(CONFIG_FB)
+		err = fb_unregister_client(&f2fs_fb_notify_block);
+		if (err) {
+			printk("%s error: unregister notifier failed!\n", __func__);
+		}
+#endif
+
+		power_supply_unreg_notifier(&f2fs_battery_notify_block);
+	//}
+#endif
+
 	f2fs_destroy_post_read_processing();
 	f2fs_destroy_root_stats();
 	unregister_filesystem(&f2fs_fs_type);

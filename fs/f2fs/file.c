@@ -428,7 +428,31 @@ flush_out:
 out:
 	trace_f2fs_sync_file_exit(inode, cp_reason, datasync, ret);
 	f2fs_trace_ios(NULL, 1);
-	trace_android_fs_fsync_end(inode, start, end - start);
+#ifdef CONFIG_F2FS_BD_STAT
+	if (!ret && fsync_begin) {
+		fsync_end = local_clock();
+		bd_lock(sbi);
+		if (S_ISREG(inode->i_mode))
+			bd_inc_val(sbi, fsync_reg_file_count, 1);
+		else if (S_ISDIR(inode->i_mode))
+			bd_inc_val(sbi, fsync_dir_count, 1);
+		bd_inc_val(sbi, fsync_time, fsync_end - fsync_begin);
+		bd_max_val(sbi, max_fsync_time, fsync_end - fsync_begin);
+		bd_inc_val(sbi, fsync_wr_file_time, wr_file_end - fsync_begin);
+		bd_max_val(sbi, max_fsync_wr_file_time, wr_file_end - fsync_begin);
+		bd_inc_val(sbi, fsync_cp_time, cp_end - cp_begin);
+		bd_max_val(sbi, max_fsync_cp_time, cp_end - cp_begin);
+		if (sync_node_end) {
+			bd_inc_val(sbi, fsync_sync_node_time,
+				   sync_node_end - sync_node_begin);
+			bd_max_val(sbi, max_fsync_sync_node_time,
+				   sync_node_end - sync_node_begin);
+		}
+		bd_inc_val(sbi, fsync_flush_time, flush_end - flush_begin);
+		bd_max_val(sbi, max_fsync_flush_time, flush_end - flush_begin);
+		bd_unlock(sbi);
+	}
+#endif
 
 	return ret;
 }

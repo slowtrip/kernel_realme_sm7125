@@ -356,6 +356,11 @@ struct discard_policy {
 	bool ordered;			/* issue discard by lba order */
 	bool timeout;			/* discard timeout for put_super */
 	unsigned int granularity;	/* discard granularity */
+	int timeout;			/* discard timeout for put_super */
+#ifdef VENDOR_EDIT
+/* shifei.ge@TECH.Storage.FS, 2019-10-15, add for oDiscard */
+	bool io_busy;			/* interrupt by user io */
+#endif
 };
 
 struct discard_cmd_control {
@@ -1616,11 +1621,22 @@ struct f2fs_sb_info {
 
 	/* Precomputed FS UUID checksum for seeding other checksums */
 	__u32 s_chksum_seed;
+#ifdef VENDOR_EDIT
+/* yanwu@TECH.Storage.FS.oF2FS, 2019/08/13, add code to optimize gc */
+/* yanwu@TECH.Storage.FS.oF2FS, 2019/08/14, add need_SSR GC */
+	bool is_frag;                	/* urgent gc flag */
+	unsigned long last_frag_check;	/* last urgent check jiffies */
+	atomic_t need_ssr_gc;         	/* ssr gc count */
+/* yanwu@TECH.Storage.FS.oF2FS, 2019/10/15, control of2fs gc code, will remove */
+	bool gc_opt_enable;
+#endif
 
-	struct workqueue_struct *post_read_wq;	/* post read workqueue */
-
-	struct kmem_cache *inline_xattr_slab;	/* inline xattr entry */
-	unsigned int inline_xattr_slab_size;	/* default inline xattr slab size */
+#ifdef VENDOR_EDIT
+/* shifei.ge@TECH.Storage.FS, 2019-10-15, add for oDiscard */
+	struct list_head sbi_list;
+	unsigned long last_wp_odc_jiffies;
+	bool odiscard_already_run;
+#endif
 };
 
 struct f2fs_private_dio {
@@ -3761,6 +3777,12 @@ void f2fs_build_bd_stat(struct f2fs_sb_info *sbi);
 void f2fs_destroy_bd_stat(struct f2fs_sb_info *sbi);
 #endif
 
+#ifdef CONFIG_F2FS_BD_STAT
+#include "of2fs_bigdata.h"
+void f2fs_build_bd_stat(struct f2fs_sb_info *sbi);
+void f2fs_destroy_bd_stat(struct f2fs_sb_info *sbi);
+#endif
+
 extern const struct file_operations f2fs_dir_operations;
 extern const struct file_operations f2fs_file_operations;
 extern const struct inode_operations f2fs_file_inode_operations;
@@ -3877,96 +3899,13 @@ static inline void f2fs_set_encrypted_inode(struct inode *inode)
  */
 static inline bool f2fs_post_read_required(struct inode *inode)
 {
-	return f2fs_encrypted_file(inode) || fsverity_active(inode) ||
-		f2fs_compressed_file(inode);
-}
 
-/*
- * compress.c
- */
-#ifdef CONFIG_F2FS_FS_COMPRESSION
-bool f2fs_is_compressed_page(struct page *page);
-struct page *f2fs_compress_control_page(struct page *page);
-int f2fs_prepare_compress_overwrite(struct inode *inode,
-			struct page **pagep, pgoff_t index, void **fsdata);
-bool f2fs_compress_write_end(struct inode *inode, void *fsdata,
-					pgoff_t index, unsigned copied);
-int f2fs_truncate_partial_cluster(struct inode *inode, u64 from, bool lock);
-void f2fs_compress_write_end_io(struct bio *bio, struct page *page);
-bool f2fs_is_compress_backend_ready(struct inode *inode);
-int f2fs_init_compress_mempool(void);
-void f2fs_destroy_compress_mempool(void);
-void f2fs_decompress_pages(struct bio *bio, struct page *page, bool verity);
-bool f2fs_cluster_is_empty(struct compress_ctx *cc);
-bool f2fs_cluster_can_merge_page(struct compress_ctx *cc, pgoff_t index);
-void f2fs_compress_ctx_add_page(struct compress_ctx *cc, struct page *page);
-int f2fs_write_multi_pages(struct compress_ctx *cc,
-						int *submitted,
-						struct writeback_control *wbc,
-						enum iostat_type io_type);
-int f2fs_is_compressed_cluster(struct inode *inode, pgoff_t index);
-int f2fs_read_multi_pages(struct compress_ctx *cc, struct bio **bio_ret,
-				unsigned nr_pages, sector_t *last_block_in_bio,
-				bool is_readahead, bool for_write);
-struct decompress_io_ctx *f2fs_alloc_dic(struct compress_ctx *cc);
-void f2fs_free_dic(struct decompress_io_ctx *dic);
-void f2fs_decompress_end_io(struct page **rpages,
-			unsigned int cluster_size, bool err, bool verity);
-int f2fs_init_compress_ctx(struct compress_ctx *cc);
-void f2fs_destroy_compress_ctx(struct compress_ctx *cc);
-void f2fs_init_compress_info(struct f2fs_sb_info *sbi);
+#if defined(CONFIG_ARCH_MSM) || defined(CONFIG_ARCH_QCOM)
+	return (f2fs_encrypted_file(inode)
+			&& !fscrypt_using_hardware_encryption(inode));
 #else
-static inline bool f2fs_is_compressed_page(struct page *page) { return false; }
-static inline bool f2fs_is_compress_backend_ready(struct inode *inode)
-{
-	if (!f2fs_compressed_file(inode))
-		return true;
-	/* not support compression */
-	return false;
-}
-static inline struct page *f2fs_compress_control_page(struct page *page)
-{
-	WARN_ON_ONCE(1);
-	return ERR_PTR(-EINVAL);
-}
-static inline int f2fs_init_compress_mempool(void) { return 0; }
-static inline void f2fs_destroy_compress_mempool(void) { }
+	return (f2fs_encrypted_file(inode));
 #endif
-
-static inline void set_compress_context(struct inode *inode)
-{
-	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
-
-	F2FS_I(inode)->i_compress_algorithm =
-			F2FS_OPTION(sbi).compress_algorithm;
-	F2FS_I(inode)->i_log_cluster_size =
-			F2FS_OPTION(sbi).compress_log_size;
-	F2FS_I(inode)->i_cluster_size =
-			1 << F2FS_I(inode)->i_log_cluster_size;
-	F2FS_I(inode)->i_flags |= F2FS_COMPR_FL;
-	set_inode_flag(inode, FI_COMPRESSED_FILE);
-	stat_inc_compr_inode(inode);
-	f2fs_mark_inode_dirty_sync(inode, true);
-}
-
-static inline u64 f2fs_disable_compressed_file(struct inode *inode)
-{
-	struct f2fs_inode_info *fi = F2FS_I(inode);
-
-	if (!f2fs_compressed_file(inode))
-		return 0;
-	if (S_ISREG(inode->i_mode)) {
-		if (get_dirty_pages(inode))
-			return 1;
-		if (fi->i_compr_blocks)
-			return fi->i_compr_blocks;
-	}
-
-	fi->i_flags &= ~F2FS_COMPR_FL;
-	stat_dec_compr_inode(inode);
-	clear_inode_flag(inode, FI_COMPRESSED_FILE);
-	f2fs_mark_inode_dirty_sync(inode, true);
-	return 0;
 }
 
 #define F2FS_FEATURE_FUNCS(name, flagname) \
@@ -4145,6 +4084,18 @@ static inline bool f2fs_force_buffered_io(struct inode *inode,
 	return false;
 }
 
+#if defined(CONFIG_ARCH_MSM) || defined(CONFIG_ARCH_QCOM)
+static inline bool f2fs_may_encrypt_bio(struct inode *inode,
+		struct f2fs_io_info *fio)
+{
+	if (fio && (fio->type != DATA || fio->encrypted_page))
+		return false;
+
+	return (f2fs_encrypted_file(inode) &&
+			fscrypt_using_hardware_encryption(inode));
+}
+#endif
+
 #ifdef CONFIG_F2FS_FAULT_INJECTION
 extern void f2fs_build_fault_attr(struct f2fs_sb_info *sbi, unsigned int rate,
 							unsigned int type);
@@ -4165,7 +4116,65 @@ static inline bool is_journalled_quota(struct f2fs_sb_info *sbi)
 	return false;
 }
 
-#define EFSBADCRC	EBADMSG		/* Bad CRC detected */
-#define EFSCORRUPTED	EUCLEAN		/* Filesystem is corrupted */
+#ifdef VENDOR_EDIT
+/* shifei.ge@TECH.Storage.FS, 2019-10-15, add for oDiscard */
+#define BATTERY_THRESHOLD 30 /* 30% */
+#define ODISCARD_WAKEUP_INTERVAL 900 /* 900 secs */
+#define ODISCARD_EXEC_TIME_NO_CHARGING 8000 /* 8000 ms */
+
+#define DEF_URGENT_DISCARD_ISSUE_TIME	50	/* 50 ms, if force */
+#define DEF_MIN_DISCARD_ISSUE_TIME_OPPO	100	/* 100 ms, if exists */
+#define DEF_MID_DISCARD_ISSUE_TIME_OPPO	2000	/* 2 s, if dev is busy */
+#define DEF_MAX_DISCARD_ISSUE_TIME_OPPO	120000	/* 120 s, if no candidates */
+#define DEF_DISCARD_EMPTY_ISSUE_TIME	600000	/* 10 min, undiscard block=0 */
+
+extern int f2fs_odiscard_enable;
+
+static inline void wake_up_odiscard_oppo(struct f2fs_sb_info *sbi)
+{
+	struct discard_cmd_control *dcc = SM_I(sbi)->dcc_info;
+
+	dcc->odiscard_wake = 1;
+	sbi->odiscard_already_run = true;
+	sbi->last_wp_odc_jiffies = jiffies;
+	wake_up_interruptible_all(&dcc->discard_wait_queue);
+}
+
+static inline void wake_up_otrim_oppo(struct f2fs_sb_info *sbi)
+{
+	struct discard_cmd_control *dcc = SM_I(sbi)->dcc_info;
+
+	dcc->otrim_wake = 1;
+	wake_up_interruptible_all(&dcc->discard_wait_queue);
+}
+
+enum {
+	F2FS_TRIM_START,
+	F2FS_TRIM_FINISH,
+	F2FS_TRIM_INTERRUPT,
+};
+
+struct f2fs_device_state {
+	bool screen_off;
+	bool battery_charging;
+	int battery_percent;
+};
+extern struct f2fs_device_state f2fs_device;
+
+#define FS_FREE_SPACE_PERCENT		20
+#define DEVICE_FREE_SPACE_PERCENT	10
+static inline block_t fs_free_space_threshold(struct f2fs_sb_info *sbi)
+{
+	return (block_t)(SM_I(sbi)->main_segments * sbi->blocks_per_seg *
+					FS_FREE_SPACE_PERCENT) / 100;
+}
+
+static inline block_t device_free_space_threshold(struct f2fs_sb_info *sbi)
+{
+	return (block_t)(SM_I(sbi)->main_segments * sbi->blocks_per_seg *
+					DEVICE_FREE_SPACE_PERCENT) / 100;
+}
+
+#endif
 
 #endif /* _LINUX_F2FS_H */

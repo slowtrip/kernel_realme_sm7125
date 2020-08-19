@@ -1800,10 +1800,7 @@ static inline char *alloc_secdata(void)
 static inline void free_secdata(void *secdata)
 { }
 #endif /* CONFIG_SECURITY */
-
-#ifdef CONFIG_PERF_EVENTS
-struct perf_event_attr;
-struct perf_event;
+#endif /* ! __LINUX_SECURITY_H */
 
 #ifdef CONFIG_SECURITY
 extern int security_perf_event_open(struct perf_event_attr *attr, int type);

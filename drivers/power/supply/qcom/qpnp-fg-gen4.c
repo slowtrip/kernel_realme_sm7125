@@ -174,10 +174,13 @@
 #define RSLOW_SCALE_FN_CHG_V2_OFFSET	0
 #define ACT_BATT_CAP_v2_WORD		287
 #define ACT_BATT_CAP_v2_OFFSET		0
+<<<<<<< HEAD
 #define IBAT_FLT_WORD			322
 #define IBAT_FLT_OFFSET			0
 #define VBAT_FLT_WORD			326
 #define VBAT_FLT_OFFSET			0
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 #define RSLOW_v2_WORD			371
 #define RSLOW_v2_OFFSET			0
 #define OCV_v2_WORD			425
@@ -214,9 +217,12 @@ struct fg_dt_props {
 	int	cutoff_curr_ma;
 	int	sys_term_curr_ma;
 	int	delta_soc_thr;
+<<<<<<< HEAD
 	int	vbatt_scale_thr_mv;
 	int	scale_timer_ms;
 	int	force_calib_level;
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	int	esr_timer_chg_fast[NUM_ESR_TIMERS];
 	int	esr_timer_chg_slow[NUM_ESR_TIMERS];
 	int	esr_timer_dischg_fast[NUM_ESR_TIMERS];
@@ -238,9 +244,12 @@ struct fg_dt_props {
 	int	ki_coeff_low_chg;
 	int	ki_coeff_med_chg;
 	int	ki_coeff_hi_chg;
+<<<<<<< HEAD
 	int	ki_coeff_lo_med_chg_thr_ma;
 	int	ki_coeff_med_hi_chg_thr_ma;
 	int	ki_coeff_cutoff_gain;
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	int	ki_coeff_full_soc_dischg[2];
 	int	ki_coeff_soc[KI_COEFF_SOC_LEVELS];
 	int	ki_coeff_low_dischg[KI_COEFF_SOC_LEVELS];
@@ -270,9 +279,12 @@ struct fg_gen4_chip {
 	struct delayed_work	pl_enable_work;
 	struct work_struct	pl_current_en_work;
 	struct completion	mem_attn;
+<<<<<<< HEAD
 	struct mutex		soc_scale_lock;
 	struct mutex		esr_calib_lock;
 	ktime_t			last_restart_time;
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	char			batt_profile[PROFILE_LEN];
 	enum slope_limit_status	slope_limit_sts;
 	int			ki_coeff_full_soc[2];
@@ -284,6 +296,7 @@ struct fg_gen4_chip {
 	int			esr_soh_cycle_count;
 	int			batt_age_level;
 	int			last_batt_age_level;
+<<<<<<< HEAD
 	int			soc_scale_msoc;
 	int			prev_soc_scale_msoc;
 	int			soc_scale_slope;
@@ -294,6 +307,8 @@ struct fg_gen4_chip {
 	int			scale_timer;
 	int			current_now;
 	int			calib_level;
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	bool			first_profile_load;
 	bool			ki_coeff_dischg_en;
 	bool			slope_limit_en;
@@ -2188,6 +2203,7 @@ static int qpnp_fg_gen4_load_profile(struct fg_gen4_chip *chip)
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 static bool is_sdam_cookie_set(struct fg_gen4_chip *chip)
 {
@@ -2291,6 +2307,8 @@ static void fg_gen4_post_profile_load(struct fg_gen4_chip *chip)
 
 }
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 static void profile_load_work(struct work_struct *work)
 {
 	struct fg_dev *fg = container_of(work,
@@ -2349,6 +2367,7 @@ static void profile_load_work(struct work_struct *work)
 	if (fg->wa_flags & PM8150B_V1_DMA_WA)
 		msleep(1000);
 
+<<<<<<< HEAD
 	if (learned_cap_uah == 0) {
 		/*
 		 * Whenever battery profile is loaded, read nominal capacity and
@@ -2369,6 +2388,24 @@ static void profile_load_work(struct work_struct *work)
 				pr_err("Error in writing to ACT_BATT_CAP rc=%d\n",
 					rc);
 		}
+=======
+	/*
+	 * Whenever battery profile is loaded, read nominal capacity and write
+	 * it to actual (or aged) capacity as it is outside the profile region
+	 * and might contain OTP values.
+	 */
+	rc = fg_sram_read(fg, NOM_CAP_WORD, NOM_CAP_OFFSET, buf, 2,
+			FG_IMA_DEFAULT);
+	if (rc < 0) {
+		pr_err("Error in reading %04x[%d] rc=%d\n", NOM_CAP_WORD,
+			NOM_CAP_OFFSET, rc);
+	} else {
+		rc = fg_sram_write(fg, fg->sp[FG_SRAM_ACT_BATT_CAP].addr_word,
+			fg->sp[FG_SRAM_ACT_BATT_CAP].addr_byte, buf,
+			fg->sp[FG_SRAM_ACT_BATT_CAP].len, FG_IMA_DEFAULT);
+		if (rc < 0)
+			pr_err("Error in writing to ACT_BATT_CAP rc=%d\n", rc);
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	}
 done:
 	rc = fg_sram_read(fg, PROFILE_INTEGRITY_WORD,
@@ -2397,12 +2434,6 @@ done:
 	schedule_delayed_work(&chip->ttf->ttf_work, msecs_to_jiffies(10000));
 	fg_dbg(fg, FG_STATUS, "profile loaded successfully");
 out:
-	if (!chip->esr_fast_calib || is_debug_batt_id(fg)) {
-		/* If it is debug battery, then disable ESR fast calibration */
-		fg_gen4_esr_fast_calib_config(chip, false);
-		chip->esr_fast_calib = false;
-	}
-
 	if (chip->dt.multi_profile_load && rc < 0)
 		chip->batt_age_level = chip->last_batt_age_level;
 	fg->soc_reporting_ready = true;
@@ -3052,6 +3083,7 @@ static int fg_gen4_esr_fast_calib_config(struct fg_gen4_chip *chip, bool en)
 	return 0;
 }
 
+<<<<<<< HEAD
 #define IBATT_TAU_MASK	GENMASK(3, 0)
 static int fg_gen4_set_vbatt_tau(struct fg_gen4_chip *chip, u8 vbatt_tau)
 {
@@ -3244,6 +3276,8 @@ static int fg_gen4_set_vbatt_low(struct fg_gen4_chip *chip)
 	return 0;
 }
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 /* All irq handlers below this */
 
 static irqreturn_t fg_mem_attn_irq_handler(int irq, void *data)
@@ -3820,6 +3854,7 @@ out:
 	vote(fg->awake_votable, ESR_CALIB, false, 0);
 }
 
+<<<<<<< HEAD
 static enum alarmtimer_restart fg_soc_scale_timer(struct alarm *alarm,
 							ktime_t time)
 {
@@ -3912,6 +3947,8 @@ static void soc_scale_work(struct work_struct *work)
 				ms_to_ktime(chip->scale_timer));
 }
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 static void pl_current_en_work(struct work_struct *work)
 {
 	struct fg_gen4_chip *chip = container_of(work,
@@ -5192,9 +5229,55 @@ static int fg_gen4_hw_init(struct fg_gen4_chip *chip)
 		}
 	}
 
+<<<<<<< HEAD
 	rc = fg_gen4_init_ki_coeffts(chip);
 	if (rc < 0)
 		return rc;
+=======
+	if (chip->dt.ki_coeff_low_chg != -EINVAL) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_LOW_CHG,
+			chip->dt.ki_coeff_low_chg, &val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_LOW_CHG].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_LOW_CHG].addr_byte, &val,
+			fg->sp[FG_SRAM_KI_COEFF_LOW_CHG].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_low_chg, rc=%d\n",
+				rc);
+			return rc;
+		}
+	}
+
+	if (chip->dt.ki_coeff_med_chg != -EINVAL) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_MED_CHG,
+			chip->dt.ki_coeff_med_chg, &val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_MED_CHG].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_MED_CHG].addr_byte, &val,
+			fg->sp[FG_SRAM_KI_COEFF_MED_CHG].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_med_chg, rc=%d\n",
+				rc);
+			return rc;
+		}
+	}
+
+	if (chip->dt.ki_coeff_hi_chg != -EINVAL) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_HI_CHG,
+			chip->dt.ki_coeff_hi_chg, &val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_HI_CHG].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_HI_CHG].addr_byte, &val,
+			fg->sp[FG_SRAM_KI_COEFF_HI_CHG].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_hi_chg, rc=%d\n", rc);
+			return rc;
+		}
+	}
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 	rc = fg_gen4_esr_calib_config(chip);
 	if (rc < 0)
@@ -5284,6 +5367,7 @@ static int fg_parse_ki_coefficients(struct fg_dev *fg)
 	of_property_read_u32(node, "qcom,ki-coeff-hi-chg",
 		&chip->dt.ki_coeff_hi_chg);
 
+<<<<<<< HEAD
 	chip->dt.ki_coeff_lo_med_chg_thr_ma = 500;
 	of_property_read_u32(node, "qcom,ki-coeff-chg-low-med-thresh-ma",
 		&chip->dt.ki_coeff_lo_med_chg_thr_ma);
@@ -5310,6 +5394,8 @@ static int fg_parse_ki_coefficients(struct fg_dev *fg)
 		chip->dt.ki_coeff_hi_dischg[i] = KI_COEFF_HI_DISCHG_DEFAULT;
 	}
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	if (!of_find_property(node, "qcom,ki-coeff-soc-dischg", NULL) ||
 		(!of_find_property(node, "qcom,ki-coeff-low-dischg", NULL) &&
 		!of_find_property(node, "qcom,ki-coeff-med-dischg", NULL) &&
@@ -5705,6 +5791,7 @@ static int fg_gen4_parse_dt(struct fg_gen4_chip *chip)
 	chip->dt.linearize_soc = of_property_read_bool(node,
 					"qcom,linearize-soc");
 
+<<<<<<< HEAD
 	chip->dt.soc_scale_mode = of_property_read_bool(node,
 						"qcom,soc-scale-mode-en");
 	if (chip->dt.soc_scale_mode) {
@@ -5720,6 +5807,8 @@ static int fg_gen4_parse_dt(struct fg_gen4_chip *chip)
 	of_property_read_u32(node, "qcom,force-calib-level",
 					&chip->dt.force_calib_level);
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	rc = fg_parse_ki_coefficients(fg);
 	if (rc < 0)
 		pr_err("Error in parsing Ki coefficients, rc=%d\n", rc);
@@ -5852,8 +5941,11 @@ static int fg_gen4_probe(struct platform_device *pdev)
 	mutex_init(&fg->bus_lock);
 	mutex_init(&fg->sram_rw_lock);
 	mutex_init(&fg->charge_full_lock);
+<<<<<<< HEAD
 	mutex_init(&chip->soc_scale_lock);
 	mutex_init(&chip->esr_calib_lock);
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	init_completion(&fg->soc_update);
 	init_completion(&fg->soc_ready);
 	init_completion(&chip->mem_attn);

@@ -124,7 +124,12 @@ struct dsi_backlight_config {
 	u32 bl_level;
 	u32 bl_scale;
 	u32 bl_scale_ad;
-	bool bl_inverted_dbv;
+#ifdef VENDOR_EDIT
+    /*Jinzhu.Han@RM.MM.Display.LCD 2019.11.30 Add for exponential backlight curve*/
+	u32 bl_map_size;
+	u32 *bl_map;
+#endif
+
 
 	int en_gpio;
 	/* PWM params */
@@ -369,8 +374,4 @@ void __attribute__((weak)) lcd_queue_load_tp_fw(void);
 int __attribute__((weak)) tp_gesture_enable_flag(void);
 /* add end by zhangchaofan@ODM_LQ@Multimedia.TP, for tp gesture 2019-12-05 */
 #endif /*ODM_LQ_EDIT*/
-
-void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
-		struct dsi_display_mode *mode, u32 frame_threshold_us);
-
 #endif /* _DSI_PANEL_H_ */

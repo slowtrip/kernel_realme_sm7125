@@ -14,7 +14,6 @@
 /plugin/;
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
-<<<<<<< HEAD:arch/arm64/boot/dts/19031/sdmmagpiep-atp-overlay.dts
 #include <dt-bindings/clock/qcom,camcc-sdmmagpie.h>
 
 #include "sdmmagpie-atp.dtsi"
@@ -26,7 +25,6 @@
 	compatible = "qcom,sdmmagpiep-atp", "qcom,sdmmagpiep", "qcom,atp";
 	qcom,msm-id = <366 0x0>;
 	qcom,board-id = <33 0>;
-=======
 
 #include "atoll-atp.dtsi"
 #include "atoll-audio-overlay.dtsi"
@@ -46,5 +44,4 @@
 	qcom,chip-wakeup-reg = <0x01FFB000>;
 	qcom,chip-wakeup-maskbit = <0>;
 	qcom,chip-wakeup-default-val = <0x1>;
->>>>>>> f21624cde598d70f5a7124736eb52b4634e54643:arch/arm64/boot/dts/qcom/atoll-ab-atp-overlay.dts
 };

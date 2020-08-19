@@ -828,7 +828,13 @@ config HAVE_LOW_MEMORY_KILLER
 
 config PROCESS_RECLAIM
 	bool "Enable process reclaim"
-	depends on PROC_FS
+#if defined(VENDOR_EDIT)
+# Kui.Zhang@PSW.BSP.Kernel.Performance, 2019-07-29, need check task is fg or not
+# during process recalim to fix blackscreen,task_is_fg depends on OPPO_FG_OPT
+	depends on PROC_FS && OPPO_FG_OPT
+#else
+#	depends on PROC_FS
+#endif
 	default y
 	help
 	 It allows to reclaim pages of the process by /proc/pid/reclaim.
@@ -842,12 +848,39 @@ config PROCESS_RECLAIM
 
 	 Any other value is ignored.
 
-config FORCE_ALLOC_FROM_DMA_ZONE
-	bool "Force certain memory allocators to always return ZONE_DMA memory"
-	depends on ZONE_DMA
+#ifdef VENDOR_EDIT
+#/* Huacai.Zhou@PSW.BSP.Kernel.MM, 2018-07-07, add alloc wait monitor support*/
+config OPPO_MEM_MONITOR
+	bool "memory monitor "
+	default n
 	help
-	  Ensure certain memory allocators always return memory from ZONE_DMA.
-	  This option helps ensure that clients who require ZONE_DMA memory are
-	  always using ZONE_DMA memory.
+	 memory monitor.
+#endif /*VENDOR_EDIT*/
 
-	  If unsure, say "n".
+#ifdef VENDOR_EDIT
+#/* Kui.Zhang@TEC.Kernel.MM, 2019-05-10, add reserved vma for emergency mmap*/
+config VIRTUAL_RESERVE_MEMORY
+	bool "reserved vma for gpu emergency mmap"
+	default n
+	help
+	 support reserved vma for gpu emergency mmap.
+#endif /* VENDOR_EDIT */
+
+# if defined(VENDOR_EDIT)
+# Kui.Zhang@PSW.BSP.Kernel.Performance, 2018-11-07, Support reclaim process
+# inactive pages only
+config PROCESS_RECLAIM_ENHANCE
+	bool "Enable process reclaim enchance"
+	depends on PROCESS_RECLAIM
+	default y
+	help
+	 It allows to reclaim different type pages of the process by
+	 /proc/pid/reclaim.
+
+	 (echo inactive_file > /proc/PID/reclaim) reclaims inactive file-backed
+		pages only.
+	 (echo inactive_anon > /proc/PID/reclaim) reclaims inactive anonymous
+		pages only.
+	 (echo inactive > /proc/PID/reclaim) reclaims inactive file-backed and
+		anonymous pages only.
+	 Any other vaule, please reference PROCESS_RECLAIM.

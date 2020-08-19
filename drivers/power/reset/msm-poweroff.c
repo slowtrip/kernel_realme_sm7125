@@ -25,8 +25,12 @@
 #include <linux/delay.h>
 #include <linux/input/qpnp-power-on.h>
 #include <linux/of_address.h>
+<<<<<<< HEAD
 #include <linux/syscore_ops.h>
 #include <linux/crash_dump.h>
+=======
+#include <linux/sched/debug.h>
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 #include <asm/cacheflush.h>
 #include <asm/system_misc.h>
@@ -726,6 +730,7 @@ static struct attribute *reset_attrs[] = {
 static struct attribute_group reset_attr_group = {
 	.attrs = reset_attrs,
 };
+<<<<<<< HEAD
 
 #if defined(CONFIG_RANDOMIZE_BASE) && defined(CONFIG_HIBERNATION)
 static void msm_poweroff_syscore_resume(void)
@@ -745,6 +750,8 @@ static struct syscore_ops msm_poweroff_syscore_ops = {
 	.resume = msm_poweroff_syscore_resume,
 };
 #endif
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 static int msm_restart_probe(struct platform_device *pdev)
 {
@@ -859,8 +866,23 @@ skip_sysfs_create:
 
 	if (scm_is_call_available(SCM_SVC_PWR, SCM_IO_DEASSERT_PS_HOLD) > 0)
 		scm_deassert_ps_hold_supported = true;
+<<<<<<< HEAD
 	if (!is_kdump_kernel())
 		set_dload_mode(download_mode);
+=======
+
+#ifdef VENDOR_EDIT
+	/*YiXue.Ge@PSW.BSP.Kernel.Driver,2017/05/15,
+	 * Add for can disable minidump by rom update
+	 */
+
+	if(romupdate_minidumpdisable){
+		download_mode = 0;
+	}
+#endif
+
+	set_dload_mode(download_mode);
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 	if (!download_mode)
 		scm_disable_sdi();
 

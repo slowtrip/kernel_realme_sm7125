@@ -1909,6 +1909,9 @@ bool f2fs_issue_discard_timeout(struct f2fs_sb_info *sbi)
 	} else {
 	__init_discard_policy(sbi, &dpolicy, DPOLICY_UMOUNT,
 					dcc->discard_granularity);
+	}
+#endif
+	dpolicy.timeout = UMOUNT_DISCARD_TIMEOUT;
 	__issue_discard_cmd(sbi, &dpolicy);
 	dropped = __drop_discard_cmd(sbi);
 

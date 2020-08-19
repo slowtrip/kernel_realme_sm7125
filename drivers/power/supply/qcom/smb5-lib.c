@@ -1577,6 +1577,17 @@ int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 			    POWER_SUPPLY_TYPEC_SINK_DEBUG_ACCESSORY)
 		return 0;
 
+	if (chg->connector_type == POWER_SUPPLY_CONNECTOR_TYPEC) {
+		rc = smblib_masked_write(chg, USB_CMD_PULLDOWN_REG,
+				EN_PULLDOWN_USB_IN_BIT,
+				suspend ? 0 : EN_PULLDOWN_USB_IN_BIT);
+		if (rc < 0) {
+			smblib_err(chg, "Couldn't write %s to EN_PULLDOWN_USB_IN_BIT rc=%d\n",
+				suspend ? "disable" : "enable", rc);
+			goto out;
+		}
+	}
+
 	if (suspend)
 		return smblib_set_usb_suspend(chg, true);
 
@@ -4481,6 +4492,11 @@ int smblib_set_prop_typec_power_role(struct smb_charger *chg,
 	enum power_supply_typec_mode typec_mode;
 	bool snk_attached = false, src_attached = false, is_pr_lock = false;
 
+#ifdef VENDOR_EDIT
+/* Yichun.Chen	PSW.BSP.CHG  2019-05-08  for otg switch */
+	return rc;
+#endif
+
 	if (chg->connector_type == POWER_SUPPLY_CONNECTOR_MICRO_USB)
 		return 0;
 
@@ -6426,7 +6442,6 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 	struct smb_irq_data *irq_data = data;
 	struct smb_charger *chg = irq_data->parent_data;
 	u8 stat;
-	bool attached = false;
 	int rc;
 
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
@@ -6438,9 +6453,8 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 		return IRQ_HANDLED;
 	}
 
-	attached = !!(stat & TYPEC_ATTACH_DETACH_STATE_BIT);
+	if (stat & TYPEC_ATTACH_DETACH_STATE_BIT) {
 
-	if (attached) {
 		smblib_lpd_clear_ra_open_work(chg);
 
 		rc = smblib_read(chg, TYPE_C_MISC_STATUS_REG, &stat);
@@ -6491,6 +6505,7 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 			chg->sink_src_mode = UNATTACHED_MODE;
 			chg->early_usb_attach = false;
 			smblib_apsd_enable(chg, true);
+<<<<<<< HEAD
 
 			/*
 			 * Restore DRP mode on type-C cable disconnect if role
@@ -6502,6 +6517,8 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 						DUAL_ROLE_PROP_MODE_NONE);
 				chg->typec_role_swap_failed = false;
 			}
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 		}
 
 		if (chg->lpd_stage == LPD_STAGE_FLOAT_CANCEL)
@@ -6509,14 +6526,8 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 					msecs_to_jiffies(1000));
 	}
 
-	rc = smblib_masked_write(chg, USB_CMD_PULLDOWN_REG,
-			EN_PULLDOWN_USB_IN_BIT,
-			attached ?  0 : EN_PULLDOWN_USB_IN_BIT);
-	if (rc < 0)
-		smblib_err(chg, "Couldn't configure pulldown on USB_IN rc=%d\n",
-				rc);
-
 	power_supply_changed(chg->usb_psy);
+<<<<<<< HEAD
 
 	return IRQ_HANDLED;
 }
@@ -6662,6 +6673,8 @@ irqreturn_t dcin_uv_irq_handler(int irq, void *data)
 	dcin_icl_decrement(chg);
 
 	mutex_unlock(&chg->dcin_aicl_lock);
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 	return IRQ_HANDLED;
 }
@@ -7195,6 +7208,7 @@ int smblib_set_prop_pr_swap_in_progress(struct smb_charger *chg,
 			smblib_err(chg, "Couldn't enable DRP rc=%d\n", rc);
 			return rc;
 		}
+#endif
 		chg->power_role = POWER_SUPPLY_TYPEC_PR_DUAL;
 		smblib_dbg(chg, PR_MISC, "restore power role: %d\n",
 				chg->power_role);
@@ -7895,10 +7909,128 @@ static void typec_disable_cmd_work(struct work_struct *work)
 		smblib_err(chg, "Couldn't write TYPE_C_INTRPT_ENB_SOFTWARE_CTRL_REG rc=%d\n", rc);
 
 	msleep(100);
+<<<<<<< HEAD
 
 	rc = smblib_masked_write(chg, TYPE_C_MODE_CFG_REG, TYPEC_DISABLE_CMD_BIT, 0);
 	if (rc < 0)
 		smblib_err(chg, "Couldn't write TYPE_C_INTRPT_ENB_SOFTWARE_CTRL_REG rc=%d\n", rc);
+=======
+
+	rc = smblib_masked_write(chg, TYPE_C_MODE_CFG_REG, TYPEC_DISABLE_CMD_BIT, 0);
+	if (rc < 0)
+		smblib_err(chg, "Couldn't write TYPE_C_INTRPT_ENB_SOFTWARE_CTRL_REG rc=%d\n", rc);
+
+	printk(KERN_ERR "!!! %s: re-active t-c module\n", __func__);
+
+	msleep(200);
+	if (smblib_get_prop_typec_mode(chg) == POWER_SUPPLY_TYPEC_NONE) {
+		printk(KERN_ERR "!!! %s: fake typec plug\n", __func__);
+		rc = smblib_masked_write(chg, TYPE_C_CFG_REG, APSD_START_ON_CC_BIT, 0);
+		if (rc < 0)
+			smblib_err(chg, "Couldn't enable APSD_START_ON_CC rc=%d\n", rc);
+		msleep(600);
+		chg->fake_typec_insertion = true;
+		chg->typec_mode = POWER_SUPPLY_TYPEC_SOURCE_DEFAULT;
+		power_supply_changed(chg->usb_psy);
+	}
+#endif
+	return;
+}
+#endif
+
+#ifdef VENDOR_EDIT
+/* Yichun.Chen  PSW.BSP.CHG  2019-04-08  for charge */
+static int oppo_chg_get_fv_monitor(struct oppo_chg_chip *chip)
+{
+    int default_fv = 0;
+
+    if (!chip)
+        return 0;
+    
+    default_fv = chip->limits.temp_cold_vfloat_mv;
+
+    switch(chip->tbatt_status) {
+        case BATTERY_STATUS__INVALID:
+        case BATTERY_STATUS__REMOVED:
+        case BATTERY_STATUS__LOW_TEMP:
+        case BATTERY_STATUS__HIGH_TEMP:
+            break;
+        case BATTERY_STATUS__COLD_TEMP:
+            default_fv = chip->limits.temp_cold_vfloat_mv;
+            break;
+        case BATTERY_STATUS__LITTLE_COLD_TEMP:
+            default_fv = chip->limits.temp_little_cold_vfloat_mv;
+            break;
+        case BATTERY_STATUS__COOL_TEMP:
+            default_fv = chip->limits.temp_cool_vfloat_mv;
+            break;
+        case BATTERY_STATUS__LITTLE_COOL_TEMP:
+            default_fv = chip->limits.temp_little_cool_vfloat_mv;
+            break;
+        case BATTERY_STATUS__NORMAL:
+            default_fv = chip->limits.temp_normal_vfloat_mv;
+            break;
+        case BATTERY_STATUS__WARM_TEMP:
+            default_fv = chip->limits.temp_warm_vfloat_mv;
+            break;
+        default:
+            break;
+    }
+#ifdef CONFIG_OPPO_SHORT_C_BATT_CHECK
+    if (oppo_short_c_batt_is_prohibit_chg(chip) && default_fv > chip->limits.short_c_bat_vfloat_mv)
+        default_fv = chip->limits.short_c_bat_vfloat_mv;
+#endif
+    return default_fv;
+}
+
+
+static int oppo_chg_get_vbatt_full_vol_sw(struct oppo_chg_chip *chip)
+{
+	int default_fv = 0;
+
+	if (!chip)
+		return 0;
+
+	default_fv = chip->limits.cold_vfloat_sw_limit;
+
+	switch(chip->tbatt_status) {
+		case BATTERY_STATUS__INVALID:
+		case BATTERY_STATUS__REMOVED:
+		case BATTERY_STATUS__LOW_TEMP:
+		case BATTERY_STATUS__HIGH_TEMP:
+			break;
+		case BATTERY_STATUS__COLD_TEMP:
+			default_fv = chip->limits.cold_vfloat_sw_limit;
+			break;
+		case BATTERY_STATUS__LITTLE_COLD_TEMP:
+			default_fv = chip->limits.little_cold_vfloat_sw_limit;
+			break;
+		case BATTERY_STATUS__COOL_TEMP:
+			default_fv = chip->limits.cool_vfloat_sw_limit;
+			break;
+		case BATTERY_STATUS__LITTLE_COOL_TEMP:
+			default_fv = chip->limits.little_cool_vfloat_sw_limit;
+			break;
+		case BATTERY_STATUS__NORMAL:
+			default_fv = chip->limits.normal_vfloat_sw_limit;
+			break;
+		case BATTERY_STATUS__WARM_TEMP:
+			default_fv = chip->limits.warm_vfloat_sw_limit;
+			break;
+		default:
+			break;
+	}
+#ifdef CONFIG_OPPO_SHORT_C_BATT_CHECK
+	if (oppo_short_c_batt_is_prohibit_chg(chip) && default_fv > chip->limits.short_c_bat_vfloat_sw_limit)
+		default_fv = chip->limits.short_c_bat_vfloat_sw_limit;
+#endif
+	return default_fv;
+}
+static int smblib_role_switch_failure(struct smb_charger *chg, int mode)
+{
+	int rc = 0;
+	union power_supply_propval pval = {0, };
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 	printk(KERN_ERR "!!! %s: re-active t-c module\n", __func__);
 
@@ -8272,6 +8404,16 @@ int smblib_init(struct smb_charger *chg)
 	INIT_DELAYED_WORK(&chg->pr_lock_clear_work,
 					smblib_pr_lock_clear_work);
 	setup_timer(&chg->apsd_timer, apsd_timer_cb, (unsigned long)chg);
+
+#ifdef VENDOR_EDIT
+/* Yichun.Chen  PSW.BSP.CHG  2019-04-08  for charge */
+	INIT_DELAYED_WORK(&chg->chg_monitor_work, oppo_chg_monitor_work);
+#endif
+
+#ifdef VENDOR_EDIT
+/* Yichun.Chen  PSW.BSP.CHG  2019-04-08  for charge */
+	INIT_DELAYED_WORK(&chg->typec_disable_cmd_work, typec_disable_cmd_work);
+#endif
 
 	if (chg->wa_flags & CHG_TERMINATION_WA) {
 		INIT_WORK(&chg->chg_termination_work,

@@ -2937,6 +2937,23 @@ static void sde_encoder_virt_mode_set(struct drm_encoder *drm_enc,
 	}
 	intf_mode = sde_encoder_get_intf_mode(drm_enc);
 
+#ifndef VENDOR_EDIT
+/*Jie.Hu@PSW.MM.Display.Lcd.Stability, 2019-08-22,add qcom patch here, solve pingpong timeout issue, bug id 2222859*/
+	sde_conn = to_sde_connector(conn);
+	sde_conn_state = to_sde_connector_state(conn->state);
+	if (sde_conn && sde_conn_state) {
+		ret = sde_conn->ops.get_mode_info(&sde_conn->base, adj_mode,
+				&sde_conn_state->mode_info,
+				sde_kms->catalog->max_mixer_width,
+				sde_conn->display);
+		if (ret) {
+			SDE_ERROR_ENC(sde_enc,
+				"failed to get mode info from the display\n");
+			return;
+		}
+	}
+#endif
+
 	/* release resources before seamless mode change */
 	if (msm_is_mode_seamless_dms(adj_mode) ||
 			(msm_is_mode_seamless_dyn_clk(adj_mode) &&
@@ -4747,6 +4764,7 @@ static void _helper_flush_dsc(struct sde_encoder_virt *sde_enc)
 extern int sde_connector_update_backlight(struct drm_connector *conn);
 extern int sde_connector_update_hbm(struct drm_connector *connector);
 #endif /* VENDOR_EDIT */
+<<<<<<< HEAD
 
 void sde_encoder_helper_needs_hw_reset(struct drm_encoder *drm_enc)
 {
@@ -4761,6 +4779,8 @@ void sde_encoder_helper_needs_hw_reset(struct drm_encoder *drm_enc)
 	}
 }
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 		struct sde_encoder_kickoff_params *params)
 {
@@ -4792,6 +4812,19 @@ int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 		sde_enc->frame_trigger_mode = sde_connector_get_property(
 			sde_enc->cur_master->connector->state,
 			CONNECTOR_PROP_CMD_FRAME_TRIGGER_MODE);
+
+	/* update the qsync parameters for the current frame */
+	if (sde_enc->cur_master)
+		sde_connector_set_qsync_params(
+				sde_enc->cur_master->connector);
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2019-03-26 add for dc backlight */
+	if (sde_enc->cur_master) {
+		sde_connector_update_backlight(sde_enc->cur_master->connector);
+		sde_connector_update_hbm(sde_enc->cur_master->connector);
+	}
+#endif /* VENDOR_EDIT */
 
 	/* prepare for next kickoff, may include waiting on previous kickoff */
 	SDE_ATRACE_BEGIN("sde_encoder_prepare_for_kickoff");

@@ -696,9 +696,43 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 
 	dsi = &panel->mipi_device;
 
-	if (panel->bl_config.bl_inverted_dbv)
-		bl_lvl = (((bl_lvl & 0xff) << 8) | (bl_lvl >> 8));
+#ifdef VENDOR_EDIT
+/* Gou shengjun@PSW.MM.Display.LCD.Feature,2018-11-21
+ * Add for OnScreenFingerprint feature
+*/
+	/*liping-m@PSW.MM.Display.LCD.Feature,2018/9/26 temp add for OnScreenFingerprint feature*/
+	if (panel->is_hbm_enabled){
+		pr_err("panel hbm is enabled\n");
+		return 0;
+	} else if((hbm_mode == 0)&&(hbm_recvoery == 1)){
+		dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_OFF);
+	}
 
+	if (bl_lvl > 1) {
+		if (bl_lvl > oppo_last_backlight)
+			oppo_backlight_delta = bl_lvl - oppo_last_backlight;
+		else
+			oppo_backlight_delta = oppo_last_backlight - bl_lvl;
+		oppo_last_backlight = bl_lvl;
+		oppo_backlight_time = ktime_get();
+	}
+	if (oppo_dimlayer_bl_enabled != oppo_dimlayer_bl_enable_real) {
+		oppo_dimlayer_bl_enable_real = oppo_dimlayer_bl_enabled;
+		if (oppo_dimlayer_bl_enable_real) {
+			pr_err("Enter DC backlight\n");
+		} else {
+			pr_err("Exit DC backlight\n");
+		}
+	}
+	if (oppo_dimlayer_bl_enable_real) {
+		/*
+		 * avoid effect power and aod mode
+		 */
+		if (bl_lvl > 1)
+			bl_lvl = oppo_dimlayer_bl_alpha;
+	}
+
+#endif /* VENDOR_EDIT */
 	rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
 	if (rc < 0)
 		pr_err("failed to update dcs backlight:%d\n", bl_lvl);
@@ -2474,8 +2508,30 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 		panel->bl_config.brightness_default_level = val;
 	}
 
-	panel->bl_config.bl_inverted_dbv = utils->read_bool(utils->data,
-		"qcom,mdss-dsi-bl-inverted-dbv");
+#ifdef VENDOR_EDIT
+/*Jinzhu.Han@RM.MM.Display.LCD 2019.11.30 Add for exponential backlight curve*/
+    rc = utils->read_u32(utils->data, "qcom,bl-map-size", &val);
+    if (rc) {
+        panel->bl_config.bl_map_size = 0;
+    } else {
+        panel->bl_config.bl_map_size = val;
+    }
+    pr_err("[%s] backlight map size: %d\n", panel->name, panel->bl_config.bl_map_size);
+
+    if (panel->bl_config.bl_map_size) {
+        panel->bl_config.bl_map = kzalloc(sizeof(u32) * panel->bl_config.bl_map_size, GFP_KERNEL);
+        if (!panel->bl_config.bl_map) {
+            pr_err("[%s] allocate backlight map memory failed\n", panel->name);
+        } else {
+            rc = utils->read_u32_array(utils->data,"qcom,bl-map",
+                    panel->bl_config.bl_map, panel->bl_config.bl_map_size);
+            if (rc) {
+                pr_err("[%s] read backlight map failed\n", panel->name);
+                kfree(panel->bl_config.bl_map);
+            }
+        }
+    }
+#endif
 
 	if (panel->bl_config.type == DSI_BACKLIGHT_PWM) {
 		rc = dsi_panel_parse_bl_pwm_config(panel);

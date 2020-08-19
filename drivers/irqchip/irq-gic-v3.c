@@ -43,11 +43,51 @@
 #include <asm/virt.h>
 
 #include <linux/syscore_ops.h>
+<<<<<<< HEAD
+=======
+#ifdef VENDOR_EDIT
+#include <linux/wakeup_reason.h>
+#endif
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 #include <linux/suspend.h>
 #include <linux/notifier.h>
 
 #include "irq-gic-common.h"
+#ifdef VENDOR_EDIT
+//Nanwei.Deng@BSP.Power.Basic 2018/06/14 add formodem irq, ,case03529649
+static char MODEM_IRQ_NAME[]=         "modem";
+//static char MODEM_DATA_IRQ_NAME[]=    "glink"; //eg:glink-native
+static char MODEM_DATA_IRQ_NAME[]=    "glink_dummy"; //eg:dummy this irq
+static char MODEM_IPA_IRQ_NAME[]=     "ipa";
+static char ADSP_IRQ_NAME[]=          "adsp";
+static char CDSP_IRQ_NAME[]=          "cdsp";
+static char WLAN_DATA_IRQ_NAME[]=     "WLAN";
+
+extern u64 wakeup_source_count_modem;
+extern u64 wakeup_source_count_adsp;
+extern u64 wakeup_source_count_cdsp;
+extern u64 wakeup_source_count_wifi ;
+
+#define MODEM_WAKEUP_SRC_NUM 3
+#define MODEM_DIAG_WS_INDEX 0
+#define MODEM_IPA_WS_INDEX 1
+#define MODEM_QMI_WS_INDEX 2
+
+extern int modem_wakeup_src_count[MODEM_WAKEUP_SRC_NUM];
+extern char modem_wakeup_src_string[MODEM_WAKEUP_SRC_NUM][10];
+//glink count
+u64 glink_wakeup_count=0;
+u64 glink_wakeup_count_modem=0;
+u64 glink_wakeup_count_adsp=0;
+u64 glink_wakeup_count_cdsp=0;
+#endif /*VENDOR_EDIT*/
+#if defined(VENDOR_EDIT) && defined(CONFIG_PROCESS_RECLAIM) && defined(CONFIG_OPPO_SPECIAL_BUILD)
+/* Kui.Zhang@PSW.TEC.Kernel.Performance, 2019/02/27
+ * collect interrupt doing time during process reclaim, only effect in age test
+ */
+#include <linux/sched/clock.h>
+#endif
 
 struct redist_region {
 	void __iomem		*redist_base;
@@ -441,6 +481,17 @@ static int gic_suspend(void)
 	return 0;
 }
 
+#ifdef VENDOR_EDIT //yunqing.zeng@bsp.power.basic 20190716 Add for clear glink count when screen off
+void glink_count_clear(void)
+{
+	glink_wakeup_count=0;
+	glink_wakeup_count_modem=0;
+	glink_wakeup_count_adsp=0;
+	glink_wakeup_count_cdsp=0;
+}
+EXPORT_SYMBOL(glink_count_clear);
+#endif
+
 static void gic_show_resume_irq(struct gic_chip_data *gic)
 {
 	unsigned int i;
@@ -472,7 +523,43 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 		else if (desc->action && desc->action->name)
 			name = desc->action->name;
 
+		#ifndef VENDOR_EDIT
 		pr_warn("%s: %d triggered %s\n", __func__, irq, name);
+		#else
+		if(name != NULL)
+		{
+			pr_warn("%s: %d triggered %s\n", __func__, irq, name);
+		}
+		#endif
+		#ifdef VENDOR_EDIT
+		log_wakeup_reason(irq);
+		#endif
+		#ifdef VENDOR_EDIT //yunqing.zeng@bsp.power.basic 20190630 Adjust for more accurate about module wakeup count
+		if(name != NULL) {
+			if(strncmp(name, WLAN_DATA_IRQ_NAME, sizeof(WLAN_DATA_IRQ_NAME)-1) == 0)
+			{
+				wakeup_source_count_wifi++;
+			}
+			else if((strncmp(name, MODEM_IRQ_NAME, sizeof(MODEM_IRQ_NAME)-1) == 0) || (strncmp(name, MODEM_DATA_IRQ_NAME, sizeof(MODEM_DATA_IRQ_NAME)-1) == 0) ||
+				(strncmp(name, MODEM_IPA_IRQ_NAME, sizeof(MODEM_IPA_IRQ_NAME)-1) == 0))
+			{
+				wakeup_source_count_modem++;
+				if(strncmp(name, MODEM_IPA_IRQ_NAME, sizeof(MODEM_IPA_IRQ_NAME)-1) == 0) {
+					modem_wakeup_src_count[MODEM_IPA_WS_INDEX]++;
+				} else {
+					modem_wakeup_src_count[MODEM_QMI_WS_INDEX]++;
+				}
+			}
+			else if(strncmp(name, ADSP_IRQ_NAME, sizeof(ADSP_IRQ_NAME)-1) == 0)
+			{
+				wakeup_source_count_adsp++;
+			}
+			else if(strncmp(name, CDSP_IRQ_NAME, sizeof(CDSP_IRQ_NAME)-1) == 0)
+			{
+				wakeup_source_count_cdsp++;
+			}
+		}
+		#endif //VENDOR_EDIT
 	}
 }
 

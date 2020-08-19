@@ -88,25 +88,18 @@ static void setup_shared_ram_perms(u32 client_id, phys_addr_t addr, u32 size,
 	int ret;
 	u32 source_vmlist[1] = {VMID_HLOS};
 
-	if (client_id != MPSS_RMTS_CLIENT_ID)
-		return;
-
-	if (vm_nav_path) {
-		int dest_vmids[3] = {VMID_HLOS, VMID_MSS_MSA, VMID_NAV};
-		int dest_perms[3] = {PERM_READ|PERM_WRITE,
-				     PERM_READ|PERM_WRITE,
-				     PERM_READ|PERM_WRITE};
-
-		ret = hyp_assign_phys(addr, size, source_vmlist, 1, dest_vmids,
-					dest_perms, 3);
-	} else {
-		int dest_vmids[2] = {VMID_HLOS, VMID_MSS_MSA};
-		int dest_perms[2] = {PERM_READ|PERM_WRITE,
-				     PERM_READ|PERM_WRITE};
-
-		ret = hyp_assign_phys(addr, size, source_vmlist, 1, dest_vmids,
-					dest_perms, 2);
-	}
+	//#ifndef VENDOR_EDIT
+	//Zhengpeng.Tan@NW.MDM.NV.892767, 2016/11/30
+	//add for nv backup and restore
+	//#ifdef FEATURE_OPPO_NV_BACKUP
+	//if (client_id != MPSS_RMTS_CLIENT_ID)
+	//#else
+	if ((client_id != MPSS_RMTS_CLIENT_ID) && (client_id != MPSS_OEMBACK_CLIENT_ID))
+	//#endif /* FEATURE_OPPO_NV_BACKUP */
+	//#endif /* VENDOR_EDIT */
+        return;	
+	ret = hyp_assign_phys(addr, size, source_vmlist, 1, dest_vmids,
+				dest_perms, 2);
 	if (ret != 0) {
 		if (ret == -EINVAL)
 			pr_warn("hyp_assign_phys is not supported!");

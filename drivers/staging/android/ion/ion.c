@@ -22,6 +22,12 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 
+#ifdef VENDOR_EDIT
+// wenbin.liu@PSW.BSP.MM, 2018/07/11
+// Add for ion used cnt
+#include <linux/module.h>
+#endif /*VENDOR_EDIT*/
+
 #include "ion.h"
 #include "ion_secure_util.h"
 
@@ -47,6 +53,19 @@ int ion_walk_heaps(int heap_id, enum ion_heap_type type, void *data,
 	return ret;
 }
 
+#ifdef VENDOR_EDIT
+/* Huacai.Zhou@PSW.BSP.Kernel.MM, 2018-06-26, add ion total used account*/
+static atomic_long_t ion_total_size;
+static bool ion_cnt_enable = true;
+unsigned long ion_total(void)
+{
+	if (!ion_cnt_enable)
+		return 0;
+	return (unsigned long)atomic_long_read(&ion_total_size);
+}
+#endif /*VENDOR_EDIT*/
+
+/* this function should only be called while dev->lock is held */
 static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 					    struct ion_device *dev,
 					    unsigned long len,
@@ -123,7 +142,11 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	ion_buffer_add(dev, buffer);
 	mutex_unlock(&dev->buffer_lock);
 	atomic_long_add(len, &heap->total_allocated);
-	atomic_long_add(len, &total_heap_bytes);
+#ifdef VENDOR_EDIT
+/* Huacai.Zhou@PSW.BSP.Kernel.MM, 2018-06-26, add ion total used account*/
+	if (ion_cnt_enable)
+		atomic_long_add(buffer->size, &ion_total_size);
+#endif
 	return buffer;
 
 free_heap:
@@ -135,6 +158,15 @@ free_buffer:
 
 void ion_buffer_destroy(struct ion_buffer *buffer)
 {
+	if (buffer->kmap_cnt > 0) {
+		pr_warn_ratelimited("ION client likely missing a call to dma_buf_kunmap or dma_buf_vunmap\n");
+		buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
+	}
+#ifdef VENDOR_EDIT
+/* Huacai.Zhou@PSW.BSP.Kernel.MM, 2018-06-26, add ion total used account*/
+	if (ion_cnt_enable)
+		atomic_long_sub(buffer->size, &ion_total_size);
+#endif /*VENDOR_EDIT*/
 	buffer->heap->ops->free(buffer);
 	kfree(buffer);
 }

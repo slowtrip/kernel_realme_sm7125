@@ -193,7 +193,7 @@ bool is_oppo_display_support_feature(enum oppo_display_feature feature_name) {
 	bool ret = false;
 	switch (feature_name) {
 		case OPPO_DISPLAY_HDR:
-			ret = true;
+			ret = false;
 			break;
 		case OPPO_DISPLAY_SEED:
 			ret = true;

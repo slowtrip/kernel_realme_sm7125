@@ -38,6 +38,7 @@ int fg_decode_voltage_15b(struct fg_sram_param *sp,
 	return sp[id].value;
 }
 
+<<<<<<< HEAD
 #define CURRENT_24BIT_MSB_MASK	GENMASK(27, 16)
 #define CURRENT_24BIT_LSB_MASK	GENMASK(11, 0)
 int fg_decode_current_24b(struct fg_sram_param *sp,
@@ -55,6 +56,8 @@ int fg_decode_current_24b(struct fg_sram_param *sp,
 	return sp[id].value;
 }
 
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 int fg_decode_current_16b(struct fg_sram_param *sp,
 				enum fg_sram_param_id id, int value)
 {

@@ -10,7 +10,6 @@
  * GNU General Public License for more details.
  */
 
-<<<<<<< HEAD:arch/arm64/boot/dts/19721/qcs410.dts
 /dts-v1/;
 
 #include "qcs410.dtsi"
@@ -19,12 +18,10 @@
 	model = "Qualcomm Technologies, Inc. QCS410 SoC";
 	compatible = "qcom,qcs410";
 	qcom,board-id = <0 0>;
-=======
 #include "atoll-audio-overlay.dtsi"
 
 &atoll_snd {
 	qcom,msm-mbhc-usbc-audio-supported = <1>;
 	qcom,msm-mbhc-hphl-swh = <0>;
 	qcom,msm-mbhc-gnd-swh = <0>;
->>>>>>> f21624cde598d70f5a7124736eb52b4634e54643:arch/arm64/boot/dts/qcom/atoll-usbc-idp.dtsi
 };

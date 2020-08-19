@@ -31,7 +31,10 @@ obj-$(CONFIG_INPUT_KEYRESET)	+= keyreset.o
 obj-$(CONFIG_INPUT_KEYCOMBO)	+= keycombo.o
 
 obj-$(CONFIG_RMI4_CORE)		+= rmi4/
+<<<<<<< HEAD
 obj-$(CONFIG_SMI130)   += sensors/smi130/
+=======
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 #ifdef VENDOR_EDIT
 #Long.Liu@BSP.Fingerprint.Basic, 2018/04/25, Add for fingerprint driver
@@ -41,3 +44,7 @@ obj-$(CONFIG_OPPO_FINGERPRINT)  += oppo_fp_drivers/
 #Long.Liu@BSP.Fingerprint.Basic, 2018/12/29, Add for Sec common driver
 obj-$(CONFIG_OPPO_FINGERPRINT)  += oppo_seccommon_drivers/
 #endif
+<<<<<<< HEAD
+=======
+
+>>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)

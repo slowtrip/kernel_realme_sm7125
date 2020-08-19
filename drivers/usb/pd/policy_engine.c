@@ -388,7 +388,9 @@ struct usbpd {
 	struct workqueue_struct	*wq;
 	struct work_struct	sm_work;
 	struct work_struct	start_periph_work;
-	struct work_struct	restart_host_work;
+#ifdef VENDOR_EDIT
+	struct delayed_work	vbus_work;
+#endif
 	struct hrtimer		timer;
 	bool			sm_queued;
 
@@ -856,6 +858,20 @@ static int pd_select_pdo(struct usbpd *pd, int pdo_pos, int uv, int ua)
 		return -ENOTSUPP;
 	}
 
+	/* Can't sink more than 5V if VCONN is sourced from the VBUS input */
+        //chenguanhua delete for merge qcom tag AU_LINUX_ANDROID_LA.UM.8.9.R1.10.00.00.558.053_r2.1_00004.0
+	/*if (pd->vconn_enabled && !pd->vconn_is_external &&
+			pd->requested_voltage > 5000000)
+		return -ENOTSUPP;*/
+
+    #ifdef VENDOR_EDIT
+    #ifdef CONFIG_OPPO_SM6250_CHARGER
+    /* Jun.Wei@PSW.BSP.CHG.Basic, 2018/07/09, Add for pd charge */
+	usbpd_err(&pd->dev, "type: %d, uv: %d, ua: %d, curr=%d\n",
+                             type, pd->requested_voltage, pd->requested_current, curr);
+
+	pd->requested_current = 3000;
+    #else
 	pd->requested_current = curr;
     #endif
 	#endif

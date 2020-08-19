@@ -587,9 +587,6 @@ bypass_bdf:
 		req->seg_id++;
 	}
 
-	if (bdf_type != CNSS_BDF_DUMMY)
-		release_firmware(fw_entry);
-
 	kfree(req);
 	kfree(resp);
 	return 0;

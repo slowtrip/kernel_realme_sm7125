@@ -208,18 +208,6 @@ $(TARGET_PREBUILT_INT_KERNEL): $(KERNEL_OUT) $(KERNEL_HEADERS_INSTALL)
 	$(mv-modules)
 	$(clean-module-folder)
 endif
-
-$(KERNEL_DEBUGFS):
-	KERNEL_DIR=$(TARGET_KERNEL_SOURCE) \
-	DEFCONFIG=$(KERNEL_DEFCONFIG) \
-	OUT_DIR=$(KERNEL_OUT) \
-	ARCH=$(KERNEL_ARCH) \
-	CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
-	DISABLE_DEBUGFS=$(KERNEL_DISABLE_DEBUGFS) \
-	$(TARGET_KERNEL_SOURCE)/disable_dbgfs.sh \
-	$(real_cc) \
-	$(TARGET_KERNEL_MAKE_ARGS)
-
 $(KERNEL_HEADERS_INSTALL): $(KERNEL_OUT)
 	$(hide) if [ ! -z "$(KERNEL_HEADER_DEFCONFIG)" ]; then \
 			rm -f $(BUILD_ROOT_LOC)$(KERNEL_CONFIG) && \
@@ -248,9 +236,9 @@ $(RTIC_DTB): $(INSTALLED_KERNEL_TARGET)
 # Creating a dtb.img once the kernel is compiled if TARGET_KERNEL_APPEND_DTB is set to be false
 $(INSTALLED_DTBIMAGE_TARGET): $(TARGET_PREBUILT_INT_KERNEL) $(INSTALLED_KERNEL_TARGET) $(RTIC_DTB)
 	$(hide) if [ -d "$(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/dts/vendor/" ]; then \
-			cat $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/dts/vendor/qcom/*.dtb $(RTIC_DTB) > $@; \
+			cat $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/dts/vendor/19721/*.dtb $(RTIC_DTB) > $@; \
 		else \
-			cat $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/dts/qcom/*.dtb $(RTIC_DTB) > $@; \
+			cat $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/dts/19721/*.dtb $(RTIC_DTB) > $@; \
 		fi
 
 .PHONY: kerneltags
