@@ -234,23 +234,10 @@ static struct pinctrl_state *serial_pinctrl_state_disable = NULL;
 //Nanwei.Deng@BSP.CHG.Basic 2018/05/01  Add for debug console reg issue 969323*/
 bool boot_with_console(void)
 {
-	if(get_boot_mode() == MSM_BOOT_MODE__FACTORY)
-	{
-		return true;
-	}
-	else {
-		if(oem_get_uartlog_status() == true)
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
-	}
+	return true;
 }
 EXPORT_SYMBOL(boot_with_console);
-#endif/*VENDOR_EDIT*/
+#endif
 
 static void msm_geni_serial_config_port(struct uart_port *uport, int cfg_flags)
 {
@@ -3011,14 +2998,6 @@ static int msm_geni_serial_sys_suspend_noirq(struct device *dev)
 	struct uart_port *uport = &port->uport;
 
 	if (uart_console(uport)) {
-		#ifdef VENDOR_EDIT
-		//Nanwei.Deng@BSP.CHG.Basic 2018/6/23 add for console resume exception in release build
-		#ifdef CONFIG_OPPO_DAILY_BUILD
-		if(boot_with_console() == true)
-		#else
-		if(oem_get_uartlog_status() == false || get_boot_mode() == MSM_BOOT_MODE__FACTORY)
-		#endif
-		#endif/*VENDOR_EDIT*/
 		uart_suspend_port((struct uart_driver *)uport->private_data,
 					uport);
 	} else {

@@ -65,11 +65,6 @@ extern struct rw_semaphore *rwsem_down_write_failed_killable(struct rw_semaphore
 extern struct rw_semaphore *rwsem_wake(struct rw_semaphore *);
 extern struct rw_semaphore *rwsem_downgrade_wake(struct rw_semaphore *sem);
 
-#ifdef VENDOR_EDIT
-// Liujie.Xie@TECH.Kernel.Sched, 2019/05/22, add for ui first
-#include <linux/oppocfs/oppo_cfs_rwsem.h>
-#endif
-
 /* Include the arch specific part */
 #include <asm/rwsem.h>
 

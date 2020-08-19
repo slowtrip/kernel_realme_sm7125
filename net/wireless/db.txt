@@ -834,15 +834,9 @@ country MK: DFS-ETSI
 	(5490 - 5730 @ 160), (30), DFS
 	(5735 - 5875 @ 80), (14)
 
-#ifdef VENDOR_EDIT
-#Yuanliu.Tang@PSW.CN.WiFi.Basic.Custom.1067549, 2016/08/31,
-#Add for Myanmar
-country MM: DFS-FCC
+country MM:
 	(2402 - 2482 @ 40), (20)
-	(5170 - 5250 @ 80), (17)
-	(5250 - 5330 @ 80), (24), DFS
-	(5490 - 5730 @ 80), (24), DFS
-#endif /* VENDOR_EDIT */
+	(5735 - 5835 @ 80), (30)
 
 country MN: DFS-FCC
 	(2402 - 2482 @ 40), (20)
