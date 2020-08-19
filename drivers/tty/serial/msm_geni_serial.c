@@ -31,14 +31,10 @@
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
 #include <soc/qcom/boot_stats.h>
-<<<<<<< HEAD
-#include <linux/dma-mapping.h>
-=======
 #ifdef VENDOR_EDIT
 //Nanwei.Deng@BSP.CHG.Basic 2018/05/01 add for console
 #include <soc/oppo/boot_mode.h>
 #endif /* VENDOR_EDIT */
->>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 /* UART specific GENI registers */
 #define SE_UART_LOOPBACK_CFG		(0x22C)
@@ -453,23 +449,10 @@ static struct pinctrl_state *serial_pinctrl_state_disable = NULL;
 //Nanwei.Deng@BSP.CHG.Basic 2018/05/01  Add for debug console reg issue 969323*/
 bool boot_with_console(void)
 {
-	if(get_boot_mode() == MSM_BOOT_MODE__FACTORY)
-	{
-		return true;
-	}
-	else {
-		if(oem_get_uartlog_status() == true)
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
-	}
+	return true;
 }
 EXPORT_SYMBOL(boot_with_console);
-#endif/*VENDOR_EDIT*/
+#endif
 
 static void msm_geni_serial_config_port(struct uart_port *uport, int cfg_flags)
 {
@@ -1612,14 +1595,10 @@ static void stop_rx_sequencer(struct uart_port *uport)
 	unsigned int geni_status;
 	bool timeout, is_irq_masked;
 	struct msm_geni_serial_port *port = GET_DEV_PORT(uport);
-<<<<<<< HEAD
-	unsigned long flags = 0;
-=======
 	u32 irq_clear = 0;
 	u32 rx_fifo_status, rx_fifo_wc;
 	int i = 0;
 	bool done;
->>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 	IPC_LOG_MSG(port->ipc_log_misc, "%s\n", __func__);
 	if (port->uart_ssr.is_ssr_down) {
@@ -1660,32 +1639,6 @@ static void stop_rx_sequencer(struct uart_port *uport)
 	if (timeout) {
 		bool is_rx_active;
 
-<<<<<<< HEAD
-		geni_status = geni_read_reg_nolog(uport->membase,
-							SE_GENI_STATUS);
-		/*
-		 * Possible that stop_rx is called from system resume context
-		 * for console usecase. In early resume, irq remains disabled
-		 * in the system. call msm_geni_serial_isr to clear
-		 * the interrupts.
-		 */
-		is_rx_active = geni_status & S_GENI_CMD_ACTIVE;
-		IPC_LOG_MSG(port->ipc_log_misc,
-			"%s cancel failed is_rx_active: %d 0x%x\n",
-			 __func__, is_rx_active, geni_status);
-		IPC_LOG_MSG(port->console_log,
-			"%s cancel failed is_rx_active:%d 0x%x\n",
-			 __func__, is_rx_active, geni_status);
-		if (uart_console(uport) && !is_rx_active) {
-			msm_geni_serial_handle_isr(uport, &flags, true);
-			goto exit_rx_seq;
-		}
-		port->s_cmd_done = false;
-		reinit_completion(&port->s_cmd_timeout);
-		geni_abort_s_cmd(uport->membase);
-		/* Ensure this goes through before polling. */
-		mb();
-=======
 	done = msm_geni_serial_poll_bit(uport, SE_GENI_S_IRQ_STATUS,
 					S_CMD_CANCEL_EN, true);
 	if (done) {
@@ -1709,7 +1662,6 @@ static void stop_rx_sequencer(struct uart_port *uport)
 		IPC_LOG_MSG(port->ipc_log_misc, "%s Cancel fail 0x%x\n",
 						__func__, geni_status);
 	}
->>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 
 		timeout = geni_wait_for_cmd_done(uport, is_irq_masked);
 		if (timeout) {
@@ -3705,19 +3657,6 @@ static int msm_geni_serial_sys_suspend_noirq(struct device *dev)
 	struct msm_geni_serial_port *port = platform_get_drvdata(pdev);
 	struct uart_port *uport = &port->uport;
 
-<<<<<<< HEAD
-	if (uart_console(uport) || port->pm_auto_suspend_disable) {
-=======
-	if (uart_console(uport)) {
-		#ifdef VENDOR_EDIT
-		//Nanwei.Deng@BSP.CHG.Basic 2018/6/23 add for console resume exception in release build
-		#ifdef CONFIG_OPPO_DAILY_BUILD
-		if(boot_with_console() == true)
-		#else
-		if(oem_get_uartlog_status() == false || get_boot_mode() == MSM_BOOT_MODE__FACTORY)
-		#endif
-		#endif/*VENDOR_EDIT*/
->>>>>>> 07d83f4535a2 (RMX206X: Import realme kernel changes)
 		uart_suspend_port((struct uart_driver *)uport->private_data,
 					uport);
 	} else {

@@ -75,9 +75,6 @@
 #include <asm/tlbflush.h>
 #include <asm/div64.h>
 #include "internal.h"
-#if defined(VENDOR_EDIT) && defined(CONFIG_OPPO_MEM_MONITOR)
-#include <linux/memory_monitor.h>
-#endif /*VENDOR_EDIT*/
 
 /* prevent >1 _updater_ of zone percpu pageset ->high and ->batch fields */
 static DEFINE_MUTEX(pcp_batch_high_lock);
@@ -4078,20 +4075,6 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	int no_progress_loops;
 	unsigned int cpuset_mems_cookie;
 	int reserve_flags;
-#if defined(VENDOR_EDIT) && defined(CONFIG_OPPO_MEM_MONITOR)
-/* Huacai.Zhou@PSW.BSP.Kernel.MM, 2018-07-07, add alloc wait monitor support*/
-	unsigned long oppo_alloc_start = jiffies;
-#endif /*VENDOR_EDIT*/
-	/*
-	 * In the slowpath, we sanity check order to avoid ever trying to
-	 * reclaim >= MAX_ORDER areas which will never succeed. Callers may
-	 * be using allocators in order of preference for an area that is
-	 * too large.
-	 */
-	if (order >= MAX_ORDER) {
-		WARN_ON_ONCE(!(gfp_mask & __GFP_NOWARN));
-		return NULL;
-	}
 
 	/*
 	 * We also sanity check to catch abuse of atomic reserves being used by
@@ -4327,10 +4310,6 @@ fail:
 	warn_alloc(gfp_mask, ac->nodemask,
 			"page allocation failure: order:%u", order);
 got_pg:
-#if defined(VENDOR_EDIT) && defined(CONFIG_OPPO_MEM_MONITOR)
-/* Huacai.Zhou@PSW.BSP.Kernel.MM, 2018-07-07, add alloc wait monitor support*/
-	memory_alloc_monitor(gfp_mask, order, jiffies_to_msecs(jiffies - oppo_alloc_start));
-#endif /*VENDOR_EDIT*/
 	return page;
 }
 
@@ -4783,11 +4762,6 @@ long si_mem_available(void)
 	reclaimable = global_node_page_state(NR_SLAB_RECLAIMABLE) +
 			global_node_page_state(NR_KERNEL_MISC_RECLAIMABLE);
 	available += reclaimable - min(reclaimable / 2, wmark_low);
-
-#ifdef VENDOR_EDIT
-//Jiheng.Xie@TECH.BSP.Performance,2019-05-06,add for ion cache add to avaible memory statistics
-	available += global_zone_page_state(NR_IONCACHE_PAGES);
-#endif
 
 	if (available < 0)
 		available = 0;

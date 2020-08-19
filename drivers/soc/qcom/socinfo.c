@@ -411,13 +411,8 @@ static struct msm_soc_info cpu_of_id[] = {
 	[418] = {SDX_CPU_SDXPRAIRIE, "SDXPRAIRIE"},
 
 	/* sdmmagpie ID */
-#if defined(VENDOR_EDIT) && defined(CONFIG_CONFIDENTIAL_EUCLID_VERSION)
-/*xing.xing@BSP.Kernel.Driver, 2019/04/19, Add for confidential version*/
-	[365] = {MSM_CPU_SDMMAGPIE, "SDM710"},
-#else
-	/* sdmmagpie ID */
-	[365] = {MSM_CPU_SDMMAGPIE, "SDM720"},
-#endif
+	[365] = {MSM_CPU_SDMMAGPIE, "SDMMAGPIE"},
+
 	/* sdmmagpiep ID */
 	[366] = {MSM_CPU_SDMMAGPIEP, "SDMMAGPIEP"},
 
@@ -440,23 +435,13 @@ static struct msm_soc_info cpu_of_id[] = {
 	[406] = {MSM_CPU_QCS410, "QCS410"},
 
 	/* atoll ID */
-#if defined(ODM_LQ_EDIT) && defined(CONFIG_CONFIDENTIAL_EUCLID_VERSION)
-/*chenhongbin@ODM_LQ@BSP.cpuinfo,2019/12/02,modified for cpuinfo */
 	[407] = {MSM_CPU_ATOLL, "ATOLL"},
-#else
-	[407] = {MSM_CPU_ATOLL, "SM7125"},
-#endif
 
 	/* atollp ID */
 	[424] = {MSM_CPU_ATOLLP, "ATOLLP"},
 
 	/* atollab ID */
-#if defined(ODM_LQ_EDIT) && defined(CONFIG_CONFIDENTIAL_EUCLID_VERSION)
-/*chenhongbin@ODM_LQ@BSP.cpuinfo,2019/12/02,modified for cpuinfo */
 	[443] = {MSM_CPU_ATOLL_AB, "ATOLL-AB"},
-#else
-	[443] = {MSM_CPU_ATOLL_AB, "SM7125"},
-#endif
 
 	/* SDM660 ID */
 	[317] = {MSM_CPU_SDM660, "SDM660"},

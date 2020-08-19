@@ -225,11 +225,6 @@ struct ion_heap {
 	wait_queue_head_t waitqueue;
 };
 
-#ifdef VENDOR_EDIT
-/* Huacai.Zhou@PSW.BSP.Kernel.MM, 2018-06-26, add ion total used account*/
-unsigned long ion_total(void);
-#endif /*VENDOR_EDIT*/
-
 /**
  * ion_buffer_cached - this ion buffer is cached
  * @buffer:		buffer
