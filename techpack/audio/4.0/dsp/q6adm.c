@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  */
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -2973,6 +2973,16 @@ exit:
  *
  * Returns 0 on success or error on failure
  */
+#ifdef VENDOR_EDIT
+/*Jianfeng.Qiu@PSW.MM.AudioDriver.Platform.1859584, 2019/02/27,
+ *Add for fix lvimfq not support sample_rate issue.
+ */
+#define VOICE_TOPOLOGY_LVIMFQ_TX_DM    0x1000BFF5
+#define VOICE_TOPOLOGY_LVVEFQ_TX_SM    0x1000BFF0
+#define VOICE_TOPOLOGY_LVVEFQ_TX_DM    0x1000BFF1
+#define NXP_SUPPORTED_BITS_PER_SAMPLE 16
+#define NXP_NOT_SUPPORTED_BITS_PER_SAMPLE 24
+#endif /* VENDOR_EDIT */
 int adm_open(int port_id, int path, int rate, int channel_mode, int topology,
 	     int perf_mode, uint16_t bit_width, int app_type, int acdb_id,
 	     int session_type)
@@ -3058,6 +3068,29 @@ int adm_open(int port_id, int path, int rate, int channel_mode, int topology,
 		    (rate != ADM_CMD_COPP_OPEN_SAMPLE_RATE_32K))
 			rate = 16000;
 	}
+        #ifdef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.Platform.1859584, 2019/02/27,
+	 *Add for fix lvimfq not support sample_rate issue.
+	 */
+	if ((topology == VOICE_TOPOLOGY_LVIMFQ_TX_DM)
+		&& (rate != ADM_CMD_COPP_OPEN_SAMPLE_RATE_48K)) {
+		pr_info("%s: Change rate %d to 48K for copp 0x%x",
+			__func__, rate, topology);
+		rate = 48000;
+	}
+
+    //chengong@ODM_LQ@Multimedia.Audio,2019/12/31,add for nxp voice
+	if ((topology == VOICE_TOPOLOGY_LVIMFQ_TX_DM) ||
+		(topology == VOICE_TOPOLOGY_LVVEFQ_TX_SM) ||
+		(topology == VOICE_TOPOLOGY_LVVEFQ_TX_DM) ||
+		(topology == VPM_TX_DM_FLUENCE_EF_COPP_TOPOLOGY)) {
+		if (bit_width == NXP_NOT_SUPPORTED_BITS_PER_SAMPLE) {
+			pr_info("%s: Change bit_width %d to 16bit for copp 0x%x",
+				__func__, bit_width, topology);
+			bit_width = NXP_SUPPORTED_BITS_PER_SAMPLE;
+		}
+	}
+	#endif /* VENDOR_EDIT */
 
 	if (topology == FFECNS_TOPOLOGY) {
 		this_adm.ffecns_port_id = port_id;
@@ -3372,7 +3405,7 @@ int adm_open(int port_id, int path, int rate, int channel_mode, int topology,
 		ret = wait_event_timeout(this_adm.copp.wait[port_idx][copp_idx],
 			atomic_read(&this_adm.copp.stat
 			[port_idx][copp_idx]) >= 0,
-			msecs_to_jiffies(2 * TIMEOUT_MS));
+			msecs_to_jiffies(TIMEOUT_MS));
 		if (!ret) {
 			pr_err("%s: ADM open timedout for port_id: 0x%x for [0x%x]\n",
 						__func__, tmp_port, port_id);
@@ -4567,49 +4600,6 @@ int adm_set_ffecns_effect(int effect)
 	return rc;
 }
 EXPORT_SYMBOL(adm_set_ffecns_effect);
-
-/**
- * adm_set_ffecns_freeze_event -
- *      command to set event for ffecns module
- *
- * @event: send ffecns freeze event true or false
- *
- * Returns 0 on success or error on failure
- */
-int adm_set_ffecns_freeze_event(bool ffecns_freeze_event)
-{
-	struct ffv_spf_freeze_param_t ffv_param;
-	struct param_hdr_v3 param_hdr;
-	int rc = 0;
-	int copp_idx = 0;
-
-	memset(&param_hdr, 0, sizeof(param_hdr));
-	memset(&ffv_param, 0, sizeof(ffv_param));
-
-	ffv_param.freeze = ffecns_freeze_event ? 1 : 0;
-	ffv_param.source_id = 0; /*default value*/
-
-	copp_idx = adm_get_default_copp_idx(this_adm.ffecns_port_id);
-	if ((copp_idx < 0) || (copp_idx >= MAX_COPPS_PER_PORT)) {
-		pr_err("%s, no active copp to query rms copp_idx:%d\n",
-			__func__, copp_idx);
-		return -EINVAL;
-	}
-
-	param_hdr.module_id = FFECNS_MODULE_ID;
-	param_hdr.instance_id = INSTANCE_ID_0;
-	param_hdr.param_id = PARAM_ID_FFV_SPF_FREEZE;
-	param_hdr.param_size = sizeof(ffv_param);
-
-	rc = adm_pack_and_set_one_pp_param(this_adm.ffecns_port_id, copp_idx,
-					param_hdr, (uint8_t *) &ffv_param);
-	if (rc)
-		pr_err("%s: Failed to set ffecns imc event, err %d\n",
-		       __func__, rc);
-
-	return rc;
-}
-EXPORT_SYMBOL(adm_set_ffecns_freeze_event);
 
 /**
  * adm_param_enable -

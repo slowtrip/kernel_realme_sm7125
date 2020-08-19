@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -38,6 +38,13 @@
 #include <dt-bindings/sound/audio-codec-port-types.h>
 #include "codecs/bolero/wsa-macro.h"
 #include "kona-port-config.h"
+#ifdef ODM_LQ_EDIT
+/*shentaotao@ODM_LQ@Multimedia.Audio,2019/10/12,modified for smartpa compatible*/
+#if defined(CONFIG_SND_SOC_TFA9874) || defined(CONFIG_SND_SOC_AWINIC_AW882XX)
+#include <linux/proc_fs.h>
+#endif  /*CONFIG_SND_SOC_TFA9874 || CONFIG_SND_SOC_AWINIC_AW882XX*/
+#endif /*ODM_LQ_EDIT*/
+
 
 #define DRV_NAME "kona-asoc-snd"
 #define __CHIPSET__ "KONA "
@@ -70,7 +77,15 @@
 #define CODEC_EXT_CLK_RATE          9600000
 #define ADSP_STATE_READY_TIMEOUT_MS 3000
 #define DEV_NAME_STR_LEN            32
+#ifndef VENDOR_EDIT
+/*zhenyu.dong@RM.MM.AudioDriver.HeadsetDet.1226699, 2019/11/06,
+ *Modify for headset detect.
+ */
 #define WCD_MBHC_HS_V_MAX           1600
+#else /* VENDOR_EDIT */
+#define WCD_MBHC_HS_V_MAX           1700
+#endif /* VENDOR_EDIT */
+
 
 #define TDM_CHANNEL_MAX		8
 #define DEV_NAME_STR_LEN	32
@@ -84,6 +99,15 @@
 #define WCN_CDC_SLIM_RX_CH_MAX 2
 #define WCN_CDC_SLIM_TX_CH_MAX 2
 #define WCN_CDC_SLIM_TX_CH_MAX_LITO 3
+
+#ifdef ODM_LQ_EDIT
+/*shentaotao@ODM_LQ@Multimedia.Audio,2019/10/12,modified for smartpa compatible*/
+#if defined(CONFIG_SND_SOC_TFA9874) || defined(CONFIG_SND_SOC_AWINIC_AW882XX)
+extern int get_smartpa_id(void);
+struct proc_dir_entry *smartpa_proc = NULL;
+#define SMARTPA_PROC_FILE "smartpa_id"
+#endif  /*CONFIG_SND_SOC_TFA9874 || CONFIG_SND_SOC_AWINIC_AW882XX*/
+#endif /*ODM_LQ_EDIT*/
 
 enum {
 	RX_PATH = 0,
@@ -666,7 +690,13 @@ static int msm_vi_feed_tx_ch = 2;
 static const char *const vi_feed_ch_text[] = {"One", "Two"};
 static char const *bit_format_text[] = {"S16_LE", "S24_LE", "S24_3LE",
 					  "S32_LE"};
+#ifndef ODM_LQ_EDIT
+//chengong@ODM_LQ@Multimedia.Audio,2019/12/24,Modify for supporting 32bit format
 static char const *cdc80_bit_format_text[] = {"S16_LE", "S24_LE", "S24_3LE"};
+#else
+static char const *cdc80_bit_format_text[] = {"S16_LE", "S24_LE", "S24_3LE",
+					  "S32_LE"};
+#endif
 static char const *ch_text[] = {"Two", "Three", "Four", "Five",
 					"Six", "Seven", "Eight"};
 static char const *usb_sample_rate_text[] = {"KHZ_8", "KHZ_11P025",
@@ -723,6 +753,11 @@ static char const *bt_sample_rate_tx_text[] = {"KHZ_8", "KHZ_16",
 					"KHZ_44P1", "KHZ_48",
 					"KHZ_88P2", "KHZ_96"};
 static const char *const afe_loopback_tx_ch_text[] = {"One", "Two"};
+
+//#ifdef ODM_LQ_EDIT
+//lishiqi@ODM_LQ@Multimedia.Audio,2020/01/07,added  for record noise
+static const char *const record_mic_delay_text[] = {"ON", "OFF"};
+//#endif
 
 static SOC_ENUM_SINGLE_EXT_DECL(usb_rx_sample_rate, usb_sample_rate_text);
 static SOC_ENUM_SINGLE_EXT_DECL(usb_tx_sample_rate, usb_sample_rate_text);
@@ -887,14 +922,28 @@ static void *def_wcd_mbhc_cal(void);
 static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.read_fw_bin = false,
 	.calibration = NULL,
+	#ifndef VENDOR_EDIT
+	/* Jianfeng.Qiu@PSW.MM.AudioDriver.HeadsetDet, 2017/04/10,
+	 * Modify for headset detect.
+	 */
 	.detect_extn_cable = true,
+	#else /* VENDOR_EDIT */
+	.detect_extn_cable = false,
+	#endif /* VENDOR_EDIT */
 	.mono_stero_detection = false,
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = true,
 	.key_code[0] = KEY_MEDIA,
+	#ifdef ODM_LQ_EDIT
+	/*shentaotao@ODM_LQ@Multimedia.Audio,2019/10/08,modified for audio bringup*/
+	.key_code[1] = KEY_VOLUMEUP,
+	.key_code[2] = KEY_VOLUMEDOWN,
+	.key_code[3] = 0,
+	#else
 	.key_code[1] = KEY_VOICECOMMAND,
 	.key_code[2] = KEY_VOLUMEUP,
 	.key_code[3] = KEY_VOLUMEDOWN,
+	#endif /*ODM_LQ_EDIT*/
 	.key_code[4] = 0,
 	.key_code[5] = 0,
 	.key_code[6] = 0,
@@ -904,7 +953,12 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.mbhc_micbias = MIC_BIAS_2,
 	.anc_micbias = MIC_BIAS_2,
 	.enable_anc_mic_detect = false,
+	#ifdef ODM_LQ_EDIT
+	/*shentaotao@ODM_LQ@Multimedia.Audio,2019/10/08,modified for audio bringup*/
+	.moisture_duty_cycle_en = false,
+	#else
 	.moisture_duty_cycle_en = true,
+	#endif /*ODM_LQ_EDIT*/
 };
 
 static inline int param_is_mask(int p)
@@ -4436,8 +4490,6 @@ static int msm_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 		break;
 
 	case MSM_BACKEND_DAI_SLIMBUS_7_TX:
-		param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT,
-				slim_tx_cfg[SLIM_TX_7].bit_format);
 		rate->min = rate->max = slim_tx_cfg[SLIM_TX_7].sample_rate;
 		channels->min = channels->max =
 			slim_tx_cfg[SLIM_TX_7].channels;
@@ -5426,8 +5478,14 @@ static void *def_wcd_mbhc_cal(void)
 		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
 
 	btn_high[0] = 75;
+	#ifdef ODM_LQ_EDIT
+	/*shentaotao@ODM_LQ@Multimedia.Audio,2019/10/08,modified for audio bringup*/
+	btn_high[1] = 225;
+	btn_high[2] = 450;
+	#else
 	btn_high[1] = 150;
 	btn_high[2] = 237;
+	#endif /*ODM_LQ_EDIT*/
 	btn_high[3] = 500;
 	btn_high[4] = 500;
 	btn_high[5] = 500;
@@ -6082,6 +6140,25 @@ static struct snd_soc_dai_link msm_common_misc_fe_dai_links[] = {
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ops = &msm_cdc_dma_be_ops,
 	},
+        #ifdef VENDOR_EDIT
+        /*zhenyu.dong@RM.MM.AudioDriver.Machine, 2019/11/14, Add for headset mic loopback, add to the end*/
+        {/* TX_CDC_DMA_TX_4 */
+                .name = "TX4_CDC_DMA Hostless",
+                .stream_name = "TX4_CDC_DMA Hostless",
+                .cpu_dai_name = "TX4_CDC_DMA_HOSTLESS",
+                .platform_name = "msm-pcm-hostless",
+                .dynamic = 1,
+                .dpcm_playback = 1,
+                .dpcm_capture = 1,
+                .trigger = {SND_SOC_DPCM_TRIGGER_POST,
+                            SND_SOC_DPCM_TRIGGER_POST},
+                .no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+                .ignore_suspend = 1,
+                .codec_dai_name = "snd-soc-dummy-dai",
+                .codec_name = "snd-soc-dummy",
+        },
+        #endif /* VENDOR_EDIT */
+
 };
 
 static struct snd_soc_dai_link msm_common_be_dai_links[] = {
@@ -7010,6 +7087,10 @@ static struct snd_soc_dai_link msm_va_cdc_dma_be_dai_links[] = {
 		.codec_name = "bolero_codec",
 		.codec_dai_name = "va_macro_tx1",
 		.no_pcm = 1,
+		#ifdef ODM_LQ_EDIT
+		//chengong@ODM_LQ@Multimedia.Audio,2019/10/25,add for disable wsa
+		.init = &msm_int_audrx_init,
+		#endif
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_VA_CDC_DMA_TX_0,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
@@ -7275,6 +7356,10 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	u32 auxpcm_audio_intf = 0;
 	u32 val = 0;
 	u32 wcn_btfm_intf = 0;
+	#ifdef ODM_LQ_EDIT
+	//chengong@ODM_LQ@Multimedia.Audio,2019/10/25,add for disable wsa
+	u32 wsa_bolero_codec = 0;
+	#endif
 	const struct of_device_id *match;
 
 	match = of_match_node(kona_asoc_machine_of_match, dev->of_node);
@@ -7292,11 +7377,26 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		       sizeof(msm_common_dai_links));
 		total_links += ARRAY_SIZE(msm_common_dai_links);
 
+		#ifdef ODM_LQ_EDIT
+		//chengong@ODM_LQ@Multimedia.Audio,2019/10/25,add for disable wsa
+		rc = of_property_read_u32(dev->of_node, "qcom,wsa-bolero-codec",
+		&wsa_bolero_codec);
+		if (rc) {
+			dev_dbg(dev, "%s: No DT match WSA Macro codec\n",
+			__func__);
+		} else {
+			if (wsa_bolero_codec) {
+				dev_dbg(dev, "%s(): WSA macro in bolero codec present\n", __func__);
+		#endif
 		memcpy(msm_kona_dai_links + total_links,
 		       msm_bolero_fe_dai_links,
 		       sizeof(msm_bolero_fe_dai_links));
 		total_links +=
 			ARRAY_SIZE(msm_bolero_fe_dai_links);
+		#ifdef ODM_LQ_EDIT
+			}
+		}
+		#endif
 
 		memcpy(msm_kona_dai_links + total_links,
 		       msm_common_misc_fe_dai_links,
@@ -7308,11 +7408,19 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		       sizeof(msm_common_be_dai_links));
 		total_links += ARRAY_SIZE(msm_common_be_dai_links);
 
+		#ifdef ODM_LQ_EDIT
+		//chengong@ODM_LQ@Multimedia.Audio,2019/10/25,add for disable wsa
+		if (wsa_bolero_codec) {
+		dev_dbg(dev, "%s(): WSAmacro in bolero codec present\n", __func__);
+		#endif
 		memcpy(msm_kona_dai_links + total_links,
 		       msm_wsa_cdc_dma_be_dai_links,
 		       sizeof(msm_wsa_cdc_dma_be_dai_links));
 		total_links +=
 			ARRAY_SIZE(msm_wsa_cdc_dma_be_dai_links);
+		#ifdef ODM_LQ_EDIT
+		}
+		#endif
 
 		memcpy(msm_kona_dai_links + total_links,
 		       msm_rx_tx_cdc_dma_be_dai_links,
@@ -7801,7 +7909,7 @@ codec_aux_dev:
 			ret = -EINVAL;
 			goto err;
 		}
-		if (soc_find_component_locked(aux_codec_of_node, NULL)) {
+			if (soc_find_component_locked(aux_codec_of_node, NULL)) {
 			/* AUX codec registered with ALSA core */
 			aux_cdc_dev_info[codecs_found].of_node =
 						aux_codec_of_node;
@@ -8010,6 +8118,54 @@ static int msm_audio_ssr_register(struct device *dev)
 	return ret;
 }
 
+#ifdef ODM_LQ_EDIT
+/*shentaotao@ODM_LQ@Multimedia.Audio,2019/10/12,modified for smartpa compatible*/
+#if defined(CONFIG_SND_SOC_TFA9874) || defined(CONFIG_SND_SOC_AWINIC_AW882XX)
+static int smartpa_id_proc_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "%d\n", get_smartpa_id());
+	return 0;
+}
+
+static int smartpa_id_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, smartpa_id_proc_show, PDE_DATA(inode));
+}
+
+static const struct file_operations smartpa_id_proc_ops = {
+	.owner		= THIS_MODULE,
+	.open		= smartpa_id_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+#endif /*CONFIG_SND_SOC_TFA9874 || CONFIG_SND_SOC_AWINIC_AW882XX*/
+#endif /*ODM_LQ_EDIT*/
+
+#ifdef ODM_LQ_EDIT
+/* chengong@ODM_LQ@Multimedia.Audio,2019/10/29,add for smartpa evt1 */
+static void odm_mi2s_be_dai_rename()
+{
+	int i = 0;
+
+	for (; i < ARRAY_SIZE(msm_mi2s_be_dai_links); i++) {
+		if (!strcmp(msm_mi2s_be_dai_links[i].name, LPASS_BE_TERT_MI2S_RX) ||
+			!strcmp(msm_mi2s_be_dai_links[i].name, LPASS_BE_TERT_MI2S_TX)) {
+			if (get_smartpa_id() == 1) {
+				mi2s_tx_cfg[TERT_MI2S].channels = 2;
+				msm_mi2s_be_dai_links[i].codec_name = "tfa98xx.1-0034";
+				msm_mi2s_be_dai_links[i].codec_dai_name = "tfa98xx-aif-1-34";
+			}  else if (get_smartpa_id() == 2) {
+				/* chengong@ODM_LQ@Multimedia.Audio,2019/11/20,add for aw smartpa */
+				mi2s_tx_cfg[TERT_MI2S].channels = 2;
+				msm_mi2s_be_dai_links[i].codec_name = "aw882xx_smartpa";
+				msm_mi2s_be_dai_links[i].codec_dai_name = "aw882xx-aif";
+			}
+		}
+	}
+}
+#endif /*ODM_LQ_EDIT*/
+
 static int msm_asoc_machine_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = NULL;
@@ -8028,6 +8184,21 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 			sizeof(struct msm_asoc_mach_data), GFP_KERNEL);
 	if (!pdata)
 		return -ENOMEM;
+
+	#ifdef ODM_LQ_EDIT
+	/*shentaotao@ODM_LQ@Multimedia.Audio,2019/10/12,modified for smartpa compatible*/
+	#if defined(CONFIG_SND_SOC_TFA9874) || defined(CONFIG_SND_SOC_AWINIC_AW882XX)
+	pr_info("%s id=%d\n", __func__, get_smartpa_id());
+	odm_mi2s_be_dai_rename();
+
+	if (smartpa_proc == NULL) {
+		smartpa_proc = proc_create(SMARTPA_PROC_FILE, 0444, NULL, &smartpa_id_proc_ops);
+		if (smartpa_proc == NULL) {
+			dev_err(&pdev->dev, "%s: proc_create failed\n", __func__);
+		}
+	}
+	#endif /*CONFIG_SND_SOC_TFA9874 || CONFIG_SND_SOC_AWINIC_AW882XX*/
+	#endif /*ODM_LQ_EDIT*/
 
 	card = populate_snd_card_dailinks(&pdev->dev);
 	if (!card) {
