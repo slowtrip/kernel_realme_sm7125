@@ -137,6 +137,21 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 
 	if (enable) {
 		for (i = 0; i < regs->count; i++) {
+
+#ifdef ODM_LQ_EDIT
+	/* modify begin by zhangchaofan@ODM_LQ@Multimedia.TP, for enable tp gesture 2019-12-05 */
+			//pr_info("LQTP- enable vreg %s\n",regs->vregs[i].vreg_name);
+			if (tp_gesture_enable_flag() && !tp_gesture_esd_flag) {
+				if ((strcmp(regs->vregs[i].vreg_name,"lab")==0) ||
+						(strcmp(regs->vregs[i].vreg_name,"ibb")==0) ||
+							(strcmp(regs->vregs[i].vreg_name,"vddio")==0) ) {
+					//pr_info("LQTP-no enable vreg %s\n",regs->vregs[i].vreg_name);
+					continue;
+				}
+			}
+	/* modify end by zhangchaofan@ODM_LQ@Multimedia.TP, for enable tp gesture 2019-12-05 */
+#endif /*ODM_LQ_EDIT*/
+
 			vreg = &regs->vregs[i];
 			if (vreg->pre_on_sleep)
 				msleep(vreg->pre_on_sleep);
@@ -172,6 +187,21 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 		}
 	} else {
 		for (i = (regs->count - 1); i >= 0; i--) {
+
+#ifdef ODM_LQ_EDIT
+	/* modify begin by zhangchaofan@ODM_LQ@Multimedia.TP, for enable tp gesture 2019-12-05 */
+			//pr_info("LQTP- disable vreg %s\n",regs->vregs[i].vreg_name);
+			if (tp_gesture_enable_flag() && !tp_gesture_esd_flag) {
+				if ((strcmp(regs->vregs[i].vreg_name,"lab")==0) ||
+						(strcmp(regs->vregs[i].vreg_name,"ibb")==0) ||
+							(strcmp(regs->vregs[i].vreg_name,"vddio")==0) ) {
+					//pr_info("LQTP-no disable vreg %s\n",regs->vregs[i].vreg_name);
+					continue;
+				}
+			}
+	/* modify end by zhangchaofan@ODM_LQ@Multimedia.TP, for enable tp gesture 2019-12-05 */
+#endif /*ODM_LQ_EDIT*/
+
 			if (regs->vregs[i].pre_off_sleep)
 				msleep(regs->vregs[i].pre_off_sleep);
 

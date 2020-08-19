@@ -2759,7 +2759,6 @@ long diagchar_compat_ioctl(struct file *filp,
 	struct diag_logging_mode_param_t mode_param;
 	struct diag_con_all_param_t con_param;
 	struct diag_query_pid_t pid_query;
-
 	switch (iocmd) {
 	case DIAG_IOCTL_COMMAND_REG:
 		result = diag_ioctl_cmd_reg_compat(ioarg);
@@ -2919,7 +2918,6 @@ long diagchar_ioctl(struct file *filp,
 	struct diag_logging_mode_param_t mode_param;
 	struct diag_con_all_param_t con_param;
 	struct diag_query_pid_t pid_query;
-
 	switch (iocmd) {
 	case DIAG_IOCTL_COMMAND_REG:
 		result = diag_ioctl_cmd_reg(ioarg);

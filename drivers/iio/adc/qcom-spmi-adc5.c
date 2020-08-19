@@ -504,23 +504,7 @@ static int adc_configure(struct adc_chip *adc,
 	if (!adc->poll_eoc)
 		reinit_completion(&adc->complete);
 
-	ret = adc_write(adc, ADC_USR_DIG_PARAM, buf, 1);
-	if (ret)
-		return ret;
-
-	ret = adc_write(adc, ADC_USR_FAST_AVG_CTL, &buf[1], 1);
-	if (ret)
-		return ret;
-
-	ret = adc_write(adc, ADC_USR_CH_SEL_CTL, &buf[2], 1);
-	if (ret)
-		return ret;
-
-	ret = adc_write(adc, ADC_USR_DELAY_CTL, &buf[3], 1);
-	if (ret)
-		return ret;
-
-	ret = adc_write(adc, ADC_USR_EN_CTL1, &buf[4], 1);
+	ret = adc_write(adc, ADC_USR_DIG_PARAM, buf, ADC5_MULTI_TRANSFER);
 	if (ret)
 		return ret;
 
@@ -563,19 +547,14 @@ static int adc_do_conversion(struct adc_chip *adc,
 	if (ret < 0)
 		goto unlock;
 
-	if ((chan->type == IIO_VOLTAGE) || (chan->type == IIO_TEMP)) {
+	if ((chan->type == IIO_VOLTAGE) || (chan->type == IIO_TEMP))
 		ret = adc_read_voltage_data(adc, data_volt);
-		if (ret)
-			goto unlock;
-	}
 	else if (chan->type == IIO_POWER) {
 		ret = adc_read_voltage_data(adc, data_volt);
 		if (ret)
 			goto unlock;
 
 		ret = adc_read_current_data(adc, data_cur);
-		if (ret)
-			goto unlock;
 	}
 
 	ret = adc_post_configure_usb_in_read(adc, prop);
@@ -771,6 +750,16 @@ static const struct adc_channels adc_chans_pmic5[ADC_MAX_CHANNEL] = {
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
 	[ADC_GPIO4_PU2]	= ADC_CHAN_TEMP("gpio4_pu2", 1,
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
+#ifdef VENDOR_EDIT
+#ifdef CONFIG_OPPO_SM6250_CHARGER
+/* Yichun.Chen	PSW.BSP.CHG  2019-04-13  for read chargerid */
+/* Yichun.Chen	PSW.BSP.CHG  2019-05-16  for usb temp */
+	[ADC_GPIO2] = ADC_CHAN_VOLT("chgid_voltage", 1, SCALE_HW_CALIB_DEFAULT)
+	[ADC_AMUX_THM3] = ADC_CHAN_VOLT("usb_temp1", 1, SCALE_HW_CALIB_DEFAULT)
+	[ADC_AMUX_THM2] = ADC_CHAN_VOLT("usb_temp2", 1, SCALE_HW_CALIB_DEFAULT)
+//	[ADC_GPIO2] = ADC_CHAN_VOLT("board_id_vdata", 1, SCALE_HW_CALIB_DEFAULT)
+#endif
+#endif
 };
 
 static const struct adc_channels adc_chans_rev2[ADC_MAX_CHANNEL] = {

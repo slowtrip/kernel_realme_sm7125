@@ -514,6 +514,10 @@ void dsi_ctrl_hw_cmn_video_engine_setup(struct dsi_ctrl_hw *ctrl,
 	/* Disable Timing double buffering */
 	DSI_W32(ctrl, DSI_DSI_TIMING_DB_MODE, 0x0);
 
+	#ifdef ODM_LQ_EDIT
+	/*zhangjialong@ODM_LQ@Multimedia.Dispaly,2020/01/10,add for qti patch for data scrambling*/
+	DSI_W32(ctrl, DSI_SCRAMBLE_CTRL, 0x1);
+	#endif
 	pr_debug("[DSI_%d] Video engine setup done\n", ctrl->index);
 }
 

@@ -1457,7 +1457,6 @@ errout:
 		if (inode->i_nlink)
 			ext4_orphan_del(NULL, inode);
 	}
-
 	return ret ? ret : copied;
 }
 
@@ -1574,7 +1573,6 @@ errout:
 		if (inode->i_nlink)
 			ext4_orphan_del(NULL, inode);
 	}
-
 	return ret ? ret : copied;
 }
 

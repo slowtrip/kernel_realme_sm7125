@@ -2570,7 +2570,7 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 		if (cfg->init_packet) {
 			rc = wait_for_completion_timeout(
 				&ctx->config_done_complete,
-				msecs_to_jiffies(30));
+				msecs_to_jiffies(300));
 			if (rc <= 0) {
 				CAM_ERR(CAM_ISP,
 					"config done completion timeout for req_id=%llu rc=%d ctx_index %d",
@@ -3393,7 +3393,7 @@ static int cam_isp_blob_fps_config(
 	struct cam_ife_hw_mgr_res             *hw_mgr_res;
 	struct cam_hw_intf                    *hw_intf;
 	struct cam_vfe_fps_config_args         fps_config_args;
-	int                                    rc = 0;
+	int                                    rc = -EINVAL;
 	uint32_t                               i;
 
 	ctx = prepare->ctxt_to_hw_map;
