@@ -300,7 +300,7 @@ struct hw_resource {
     int id1_gpio;
     int id2_gpio;
     int id3_gpio;
-
+    int tp_cs_gpio;
     int irq_gpio;                                   /*irq GPIO num*/
     int reset_gpio;                                 /*Reset GPIO*/
 

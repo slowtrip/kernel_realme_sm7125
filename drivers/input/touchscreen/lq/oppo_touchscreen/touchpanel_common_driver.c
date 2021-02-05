@@ -1331,6 +1331,16 @@ int tp_control_reset_gpio(bool enable)
     return 0;
 }
 
+int tp_control_cs_gpio(bool enable)
+{
+    if (gpio_is_valid(g_tp->hw_res.tp_cs_gpio)) {
+        gpio_set_value(g_tp->hw_res.tp_cs_gpio, enable);
+    }
+
+    return 0;
+}
+EXPORT_SYMBOL(tp_control_cs_gpio);
+
 /*
  * check_touchirq_triggered--used for stop system going sleep when touch irq is triggered
  * 1 if irq triggered, otherwise is 0
@@ -4712,6 +4722,17 @@ static void init_parse_dts(struct device *dev, struct touchpanel_data *ts)
     TPD_INFO("irq_gpio = %d, irq_flags = 0x%x, reset_gpio = %d\n",
 			ts->hw_res.irq_gpio, ts->irq_flags, ts->hw_res.reset_gpio);
 
+    // cs_gpio
+    ts->hw_res.tp_cs_gpio = of_get_named_gpio(np, "cs-gpio", 0);
+	TPD_INFO("cs_gpio = %d\n", ts->hw_res.tp_cs_gpio);
+    if (gpio_is_valid(ts->hw_res.tp_cs_gpio)) {
+        rc = gpio_request(ts->hw_res.tp_cs_gpio, "cs-gpio");
+        if (rc)
+            TPD_INFO("unable to request gpio [%d]\n", ts->hw_res.tp_cs_gpio);
+    } else {
+        TPD_INFO("ts->tp_cs-gpio not specified\n");
+    }
+
 #ifdef ODM_LQ_EDIT
 /* modify begin by zhangchaofan@ODM_LQ@Multimedia.TP, remove invalid dts 2019-12-09 */
 #if 0
@@ -5334,6 +5355,10 @@ int register_common_touch_device(struct touchpanel_data *pdata)
         invoke = (struct invoke_method *)pdata->chip_data;
         invoke->invoke_common = tp_work_common_callback;
         invoke->async_work = tp_async_work_callback;
+    }
+
+    if (gpio_is_valid(ts->hw_res.tp_cs_gpio)) {
+        gpio_set_value(ts->hw_res.tp_cs_gpio, 1);
     }
 
 #ifdef ODM_LQ_EDIT
