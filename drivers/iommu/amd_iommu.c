@@ -1331,12 +1331,14 @@ static bool increase_address_space(struct protection_domain *domain,
 {
 	u64 *pte;
 
-	if (domain->mode == PAGE_MODE_6_LEVEL)
-		/* address space already 64 bit large */
-		return false;
-
 	pte = (void *)get_zeroed_page(gfp);
 	if (!pte)
+		return;
+
+	spin_lock_irqsave(&domain->lock, flags);
+
+	if (WARN_ON_ONCE(domain->mode == PAGE_MODE_6_LEVEL))
+		/* address space already 64 bit large */
 		return false;
 
 	*pte             = PM_LEVEL_PDE(domain->mode,
@@ -1344,8 +1346,13 @@ static bool increase_address_space(struct protection_domain *domain,
 	domain->pt_root  = pte;
 	domain->mode    += 1;
 	domain->updated  = true;
+	pte              = NULL;
 
-	return true;
+out:
+	spin_unlock_irqrestore(&domain->lock, flags);
+	free_page((unsigned long)pte);
+
+	return;
 }
 
 static u64 *alloc_pte(struct protection_domain *domain,
