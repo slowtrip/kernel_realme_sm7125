@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -37,8 +37,10 @@
 					   <0x00000000>, <0x00000000>,
 					   <0x00000000>;
 
-		clock-names = "lpass_core_hw_vote";
-		clocks = <&lpass_core_hw_vote 0>;
+		clock-names = "lpass_core_hw_vote",
+				"lpass_audio_hw_vote";
+		clocks = <&lpass_core_hw_vote 0>,
+				<&lpass_audio_hw_vote 0>;
 
 		cdc_dmic01_clk_active: dmic01_clk_active {
 			mux {
@@ -333,7 +335,7 @@
 
 			config {
 				pins = "gpio0";
-				drive-strength = <2>;
+				drive-strength = <10>;
 				bias-bus-hold;
 			};
 		};
@@ -346,8 +348,8 @@
 
 			config {
 				pins = "gpio0";
-				drive-strength = <2>;
-				slew-rate = <1>;
+				drive-strength = <10>;
+				slew-rate = <3>;
 				bias-disable;
 			};
 		};
@@ -360,7 +362,7 @@
 
 			config {
 				pins = "gpio1";
-				drive-strength = <2>;
+				drive-strength = <10>;
 				bias-bus-hold;
 			};
 		};
@@ -373,8 +375,8 @@
 
 			config {
 				pins = "gpio1";
-				drive-strength = <2>;
-				slew-rate = <1>;
+				drive-strength = <10>;
+				slew-rate = <3>;
 				bias-bus-hold;
 			};
 		};
@@ -387,7 +389,7 @@
 
 			config {
 				pins = "gpio10";
-				drive-strength = <2>;
+				drive-strength = <10>;
 				bias-bus-hold;
 			};
 		};
@@ -400,8 +402,8 @@
 
 			config {
 				pins = "gpio10";
-				drive-strength = <2>;
-				slew-rate = <1>;
+				drive-strength = <10>;
+				slew-rate = <3>;
 				bias-bus-hold;
 			};
 		};
@@ -414,7 +416,7 @@
 
 			config {
 				pins = "gpio11";
-				drive-strength = <2>;
+				drive-strength = <10>;
 				bias-bus-hold;
 			};
 		};
@@ -427,7 +429,8 @@
 
 			config {
 				pins = "gpio11";
-				drive-strength = <2>;
+				drive-strength = <10>;
+				slew-rate = <3>;
 				bias-bus-hold;
 			};
 		};
@@ -440,7 +443,7 @@
 
 			config {
 				pins = "gpio2";
-				drive-strength = <2>;
+				drive-strength = <10>;
 				bias-bus-hold;
 			};
 		};
@@ -453,8 +456,8 @@
 
 			config {
 				pins = "gpio2";
-				drive-strength = <2>;
-				slew-rate = <1>;
+				drive-strength = <10>;
+				slew-rate = <3>;
 				bias-bus-hold;
 			};
 		};
@@ -467,7 +470,7 @@
 
 			config {
 				pins = "gpio14";
-				drive-strength = <2>;
+				drive-strength = <10>;
 				bias-bus-hold;
 			};
 		};
@@ -480,8 +483,8 @@
 
 			config {
 				pins = "gpio14";
-				drive-strength = <2>;
-				slew-rate = <1>;
+				drive-strength = <10>;
+				slew-rate = <3>;
 				bias-bus-hold;
 			};
 		};
@@ -494,7 +497,7 @@
 
 			config {
 				pins = "gpio3";
-				drive-strength = <2>;
+				drive-strength = <10>;
 				bias-bus-hold;
 			};
 		};
@@ -507,8 +510,8 @@
 
 			config {
 				pins = "gpio3";
-				drive-strength = <2>;
-				slew-rate = <1>;
+				drive-strength = <10>;
+				slew-rate = <3>;
 				bias-disable;
 			};
 		};
@@ -521,7 +524,7 @@
 
 			config {
 				pins = "gpio4", "gpio5";
-				drive-strength = <2>;
+				drive-strength = <10>;
 				bias-bus-hold;
 			};
 		};
@@ -534,8 +537,8 @@
 
 			config {
 				pins = "gpio4", "gpio5";
-				drive-strength = <2>;
-				slew-rate = <1>;
+				drive-strength = <10>;
+				slew-rate = <3>;
 				bias-bus-hold;
 			};
 		};

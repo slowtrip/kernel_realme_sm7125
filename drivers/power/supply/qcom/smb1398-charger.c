@@ -209,9 +209,9 @@
 #define TAPER_MAIN_ICL_LIMIT_VOTER	"TAPER_MAIN_ICL_LIMIT_VOTER"
 
 /* Constant definitions */
-/* Need to define max ILIM for smb1398 */
-#define DIV2_MAX_ILIM_UA		3200000
-#define DIV2_MAX_ILIM_DUAL_CP_UA	6400000
+#define DIV2_MAX_ILIM_UA		5000000
+#define DIV2_MAX_ILIM_DUAL_CP_UA	10000000
+#define DIV2_ILIM_CFG_PCT		105
 
 #define TAPER_STEPPER_UA_DEFAULT	100000
 #define TAPER_STEPPER_UA_IN_CC_MODE	200000
@@ -960,7 +960,8 @@ static int div2_cp_master_get_prop(struct power_supply *psy,
 		} else {
 			rc = smb1398_get_iin_ma(chip, &ilim_ma);
 			if (!rc)
-				val->intval = ilim_ma * 1000;
+				val->intval = (ilim_ma * 1000 * 100)
+							/ DIV2_ILIM_CFG_PCT;
 		}
 		chip->cp_ilim = val->intval;
 		break;
@@ -1253,6 +1254,9 @@ static int smb1398_div2_cp_slave_disable_vote_cb(struct votable *votable,
 	if (disable && (chip->div2_cp_ilim_votable)) {
 		ilim_ua = get_effective_result_locked(
 				chip->div2_cp_ilim_votable);
+
+		ilim_ua = (ilim_ua * DIV2_ILIM_CFG_PCT) / 100;
+
 		if (ilim_ua > DIV2_MAX_ILIM_UA)
 			ilim_ua = DIV2_MAX_ILIM_UA;
 
@@ -1282,6 +1286,8 @@ static int smb1398_div2_cp_ilim_vote_cb(struct votable *votable,
 
 	if (!client)
 		return -EINVAL;
+
+	ilim_ua = (ilim_ua * DIV2_ILIM_CFG_PCT) / 100;
 
 	max_ilim_ua = is_cps_available(chip) ?
 		DIV2_MAX_ILIM_DUAL_CP_UA : DIV2_MAX_ILIM_UA;
@@ -1464,7 +1470,7 @@ static int smb1398_get_irq_index_byname(const char *irq_name)
 {
 	int i;
 
-	for (i = 0; i < NUM_IRQS; i++) {
+	for (i = 0; i < ARRAY_SIZE(smb_irqs); i++) {
 		if (smb_irqs[i].name != NULL)
 			if (strcmp(smb_irqs[i].name, irq_name) == 0)
 				return i;
@@ -1580,7 +1586,7 @@ static void smb1398_status_change_work(struct work_struct *work)
 	 * valid due to the battery discharging later, remove
 	 * vote from CUTOFF_SOC_VOTER.
 	 */
-	if (is_cutoff_soc_reached(chip))
+	if (!is_cutoff_soc_reached(chip))
 		vote(chip->div2_cp_disable_votable, CUTOFF_SOC_VOTER, false, 0);
 
 	rc = power_supply_get_property(chip->usb_psy,
@@ -1720,7 +1726,7 @@ static void smb1398_taper_work(struct work_struct *work)
 	struct smb1398_chip *chip = container_of(work,
 			struct smb1398_chip, taper_work);
 	union power_supply_propval pval = {0};
-	int rc, fcc_ua, fv_uv, stepper_ua, main_fcc_ua;
+	int rc, fcc_ua, fv_uv, stepper_ua, main_fcc_ua = 0;
 	bool slave_en;
 
 	if (!is_psy_voter_available(chip))
@@ -1902,7 +1908,7 @@ static int smb1398_div2_cp_parse_dt(struct smb1398_chip *chip)
 		return rc;
 	}
 
-	chip->div2_cp_min_ilim_ua = 1000000;
+	chip->div2_cp_min_ilim_ua = 750000;
 	of_property_read_u32(chip->dev->of_node, "qcom,div2-cp-min-ilim-ua",
 			&chip->div2_cp_min_ilim_ua);
 
