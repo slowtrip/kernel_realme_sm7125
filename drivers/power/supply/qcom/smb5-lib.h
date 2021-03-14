@@ -580,6 +580,8 @@ struct smb_charger {
 	int			default_aicl_cont_threshold_mv;
 	bool			aicl_max_reached;
 	int			last_cc_soc;
+	int			dr_mode;
+	int			term_vbat_uv;
 	int			usbin_forced_max_uv;
 	int			init_thermal_ua;
 	u32			comp_clamp_level;
