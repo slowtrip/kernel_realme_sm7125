@@ -73,6 +73,10 @@
 #define OUI_TYPE_BITS           24
 #define MAX_ADAPTIVE_11R_IE_LEN 8
 
+#define SAE_SINGLE_PMK_OUI          0x964000
+#define SAE_SINGLE_PMK_TYPE         0x03
+#define MAX_SAE_SINGLE_PMK_IE_LEN   8
+
 /* Temporary vendor specific IE for 11n pre-standard interoperability */
 #define VENDOR_HT_OUI       0x00904c
 #define VENDOR_HT_CAP_ID    51
@@ -1333,6 +1337,8 @@ is_bwnss_oui(uint8_t *frm)
 		((ATH_OUI_BW_NSS_MAP_TYPE << 24) | ATH_OUI));
 }
 
+#define WLAN_BWNSS_MAP_OFFSET 6
+
 /**
  * is_he_cap_oui() - If vendor IE is HE CAP OUI
  * @frm: vendor IE pointer
@@ -1376,6 +1382,21 @@ is_adaptive_11r_oui(uint8_t *frm)
 {
 	return (frm[1] > OUI_LENGTH) && (LE_READ_4(frm + 2) ==
 		((ADAPTIVE_11R_OUI_TYPE << OUI_TYPE_BITS) | ADAPTIVE_11R_OUI));
+}
+
+/**
+ * is_sae_single_pmk_oui() - Fun to check if vendor IE is sae single pmk OUI
+ * @frm: vendor IE pointer
+ *
+ * API to check if vendor IE is sae single pmk OUI
+ *
+ * Return: true if its sae single pmk OUI
+ */
+static inline bool
+is_sae_single_pmk_oui(uint8_t *frm)
+{
+	return (frm[1] > OUI_LENGTH) && (LE_READ_4(frm + 2) ==
+		((SAE_SINGLE_PMK_TYPE << OUI_TYPE_BITS) | SAE_SINGLE_PMK_OUI));
 }
 
 /**
@@ -1491,7 +1512,8 @@ static inline QDF_STATUS wlan_parse_rsn_ie(uint8_t *rsn_ie,
 		rsn->pmkid_count = LE_READ_2(ie);
 		ie += 2;
 		rem_len -= 2;
-		if (rsn->pmkid_count > (unsigned int) rem_len / PMKID_LEN) {
+		if (rsn->pmkid_count > MAX_PMKID ||
+		    rsn->pmkid_count > (unsigned int)rem_len / PMKID_LEN) {
 			rsn->pmkid_count = 0;
 			return QDF_STATUS_E_INVAL;
 		}
@@ -1678,9 +1700,12 @@ static inline void wlan_parse_wapi_ie(uint8_t *wapi_ie,
 		len -= WLAN_OUI_SIZE;
 	}
 
+	if (len < 2)
+		return;
 	wapi->uc_cipher_count = LE_READ_2(ie);
 	ie += 2;
 	len -= 2;
+
 	if ((wapi->uc_cipher_count > WLAN_MAX_CIPHER) ||
 	   len < (wapi->uc_cipher_count * WLAN_OUI_SIZE + 2))
 		return;
