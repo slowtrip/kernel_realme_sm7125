@@ -1020,18 +1020,7 @@ void pm_system_irq_wakeup(unsigned int irq_number)
 
 			pr_warn("%s: %d triggered %s\n", __func__,
 					irq_number, name);
-			#ifdef VENDOR_EDIT
-			log_wakeup_reason(irq_number);
-			#endif
-            #ifdef VENDOR_EDIT
-            //Nanwei.Deng@BSP.Power.Basic, 2018/04/28, add for analysis power coumption.
-			if(irq_number == WAKEUP_SOURCE_KPDPWR) {
-                wakeup_source_count_kpdpwr++;
-            }
-			if(irq_number == WAKEUP_SOURCE_PMIC_ALARM) {
-                wakeup_source_count_pmic_rtc++;
-            }
-			#endif
+
 		}
 		pm_wakeup_irq = irq_number;
 		pm_system_wakeup();
