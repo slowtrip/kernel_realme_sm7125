@@ -429,10 +429,7 @@ static int cnss_fw_ready_hdlr(struct cnss_plat_data *plat_priv)
 		ret = cnss_bus_call_driver_probe(plat_priv);
 	}
 
-	if (ret && (test_bit(CNSS_DEV_ERR_NOTIFY, &plat_priv->driver_state) ||
-		    (test_bit(CNSS_DRIVER_LOADING, &plat_priv->driver_state) &&
-		     test_bit(IGNORE_PROBE_FAIL_SHUTDOWN,
-			      &plat_priv->ctrl_params.quirks))))
+	if (ret && test_bit(CNSS_DEV_ERR_NOTIFY, &plat_priv->driver_state))
 		goto out;
 	else if (ret)
 		goto shutdown;

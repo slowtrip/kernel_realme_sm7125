@@ -1,4 +1,4 @@
-/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -19,7 +19,6 @@
 #include <linux/of_platform.h>
 #include <linux/of_batterydata.h>
 #include <linux/platform_device.h>
-#include <linux/iio/consumer.h>
 #include <linux/qpnp/qpnp-revid.h>
 #include <linux/thermal.h>
 #include "fg-core.h"
@@ -213,7 +212,6 @@ struct fg_dt_props {
 	int	delta_esr_disable_count;
 	int	delta_esr_thr_uohms;
 	int	rconn_uohms;
-	int	batt_id_pullup_kohms;
 	int	batt_temp_cold_thresh;
 	int	batt_temp_hot_thresh;
 	int	batt_temp_hyst;
@@ -236,7 +234,6 @@ struct fg_dt_props {
 struct fg_gen4_chip {
 	struct fg_dev		fg;
 	struct fg_dt_props	dt;
-	struct iio_channel	*batt_id_chan;
 	struct cycle_counter	*counter;
 	struct cap_learning	*cl;
 	struct ttf		*ttf;
@@ -496,38 +493,6 @@ struct bias_config id_table[3] = {
 	{0x75, 0x76, 30},
 };
 
-#define BID_VREF_MV	1875
-static int fg_get_batt_id_adc(struct fg_gen4_chip *chip, u32 *batt_id_ohms)
-{
-	int rc, batt_id_mv;
-	int64_t denom;
-
-	rc = iio_read_channel_processed(chip->batt_id_chan, &batt_id_mv);
-	if (rc < 0) {
-		pr_err("Error in reading batt_id channel, rc=%d\n", rc);
-		return rc;
-	}
-
-	batt_id_mv = div_s64(batt_id_mv, 1000);
-	if (batt_id_mv == 0) {
-		pr_debug("batt_id_mv = 0 from ADC\n");
-		return 0;
-	}
-
-	denom = div64_s64(BID_VREF_MV * 1000, batt_id_mv) - 1000;
-	if (denom <= 0) {
-		/* batt id connector might be open, return 0 kohms */
-		return 0;
-	}
-
-	*batt_id_ohms = div64_u64(chip->dt.batt_id_pullup_kohms * 1000 * 1000
-					+ denom / 2, denom);
-
-	pr_debug("batt_id_mv=%d, batt_id_ohms=%d\n", batt_id_mv, *batt_id_ohms);
-
-	return 0;
-}
-
 #define MAX_BIAS_CODE	0x70E4
 static int fg_gen4_get_batt_id(struct fg_gen4_chip *chip)
 {
@@ -535,9 +500,6 @@ static int fg_gen4_get_batt_id(struct fg_gen4_chip *chip)
 	int i, rc, batt_id_kohms;
 	u16 tmp = 0, bias_code = 0, delta = 0;
 	u8 val, bias_id = 0;
-
-	if (chip->batt_id_chan)
-		return fg_get_batt_id_adc(chip, &fg->batt_id_ohms);
 
 	for (i = 0; i < ARRAY_SIZE(id_table); i++)  {
 		rc = fg_read(fg, fg->rradc_base + id_table[i].status_reg, &val,
@@ -4854,8 +4816,6 @@ static int fg_parse_esr_cal_params(struct fg_dev *fg)
 #define BTEMP_DELTA_HIGH		3
 #define DEFAULT_ESR_PULSE_THRESH_MA	47
 #define DEFAULT_ESR_MEAS_CURR_MA	120
-#define DEFAULT_BATT_ID_PULLUP_KOHMS	100
-
 static int fg_gen4_parse_dt(struct fg_gen4_chip *chip)
 {
 	struct fg_dev *fg = &chip->fg;
@@ -4906,19 +4866,6 @@ static int fg_gen4_parse_dt(struct fg_gen4_chip *chip)
 		break;
 	default:
 		return -EINVAL;
-	}
-
-	rc = of_property_match_string(fg->dev->of_node, "io-channel-names",
-					"batt_id");
-	if (rc >= 0) {
-		chip->batt_id_chan = devm_iio_channel_get(fg->dev, "batt_id");
-		if (IS_ERR(chip->batt_id_chan)) {
-			rc = PTR_ERR(chip->batt_id_chan);
-			if (rc != -EPROBE_DEFER)
-				pr_err("Couldn't get batt_id_chan rc=%d\n", rc);
-			chip->batt_id_chan = NULL;
-			return rc;
-		}
 	}
 
 	if (of_get_available_child_count(node) == 0) {
@@ -5154,10 +5101,6 @@ static int fg_gen4_parse_dt(struct fg_gen4_chip *chip)
 	chip->dt.multi_profile_load = of_property_read_bool(node,
 					"qcom,multi-profile-load");
 	chip->dt.soc_hi_res = of_property_read_bool(node, "qcom,soc-hi-res");
-
-	chip->dt.batt_id_pullup_kohms = DEFAULT_BATT_ID_PULLUP_KOHMS;
-	of_property_read_u32(node, "qcom,batt-id-pullup-kohms",
-				&chip->dt.batt_id_pullup_kohms);
 	return 0;
 }
 

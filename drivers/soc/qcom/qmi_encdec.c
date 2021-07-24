@@ -739,7 +739,7 @@ void *qmi_encode_message(int type, unsigned int msg_id, size_t *len,
 	if (WARN_ON(ei && !c_struct))
 		return ERR_PTR(-EINVAL);
 
-	msg = vzalloc(sizeof(*hdr) + *len);
+	msg = kzalloc(sizeof(*hdr) + *len, GFP_KERNEL);
 	if (!msg)
 		return ERR_PTR(-ENOMEM);
 
@@ -747,7 +747,7 @@ void *qmi_encode_message(int type, unsigned int msg_id, size_t *len,
 	if (c_struct) {
 		msglen = qmi_encode(ei, msg + sizeof(*hdr), c_struct, *len, 1);
 		if (msglen < 0) {
-			vfree(msg);
+			kfree(msg);
 			return ERR_PTR(msglen);
 		}
 	}
