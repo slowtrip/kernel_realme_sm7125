@@ -492,9 +492,9 @@
 				compatible = "android,vbmeta";
 			/*#ifndef ODM_LQ_EDIT*/
 			/*Hongbin.Chen@ODM_LQ@BSP.Partition,2019/10/12,modified for update partition*/
-			/*	parts = "vbmeta,boot,system,vendor,dtbo";*/
+			/*	parts = "vbmeta,boot,system,vendor,dtbo,odm";*/
 			/*#else*/
-				parts = "vbmeta,boot,system,vendor,dtbo,recovery";
+				parts = "vbmeta,boot,system,vendor,dtbo,recovery,odm";
 			/*#endif*/
 			};
 			fstab {
@@ -502,6 +502,17 @@
 				vendor {
 					compatible = "android,vendor";
 					dev = "/dev/block/platform/soc/1d84000.ufshc/by-name/vendor";
+					type = "ext4";
+/*#if defined(VENDOR_EDIT) && defined(CONFIG_EXT4_ASYNC_DISCARD_SUPPORT)*/
+/*yh@PSW.BSP.Storage.EXT4, 2018-11-26 add for ext4 async discard suppot*/
+					mnt_flags = "ro,barrier=1,async_discard";
+/*#else*/
+					/*mnt_flags = "ro,barrier=1,discard";*/
+/*#endif*/
+                                };
+				odm {
+					compatible = "android,odm";
+					dev = "/dev/block/platform/soc/1d84000.ufshc/by-name/odm";
 					type = "ext4";
 /*#if defined(VENDOR_EDIT) && defined(CONFIG_EXT4_ASYNC_DISCARD_SUPPORT)*/
 /*yh@PSW.BSP.Storage.EXT4, 2018-11-26 add for ext4 async discard suppot*/
