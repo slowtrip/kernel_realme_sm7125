@@ -113,16 +113,6 @@ config EXT4_FS_ENCRYPTION
 	default n
 	depends on EXT4_ENCRYPTION
 
-<<<<<<< HEAD
-config EXT4_FS_ICE_ENCRYPTION
-	bool "Ext4 Encryption with ICE support"
-	default n
-	depends on EXT4_FS_ENCRYPTION
-	depends on PFK
-
-
-=======
->>>>>>> f21624cde598d70f5a7124736eb52b4634e54643
 config EXT4_DEBUG
 	bool "EXT4 debugging support"
 	depends on EXT4_FS
