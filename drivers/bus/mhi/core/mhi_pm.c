@@ -49,7 +49,8 @@ static void mhi_special_events_pending(struct mhi_controller *mhi_cntrl);
  * L2: SHUTDOWN_PROCESS -> LD_ERR_FATAL_DETECT
  *     SHUTDOWN_PROCESS -> DISABLE
  * L3: LD_ERR_FATAL_DETECT <--> LD_ERR_FATAL_DETECT
- *     LD_ERR_FATAL_DETECT -> SHUTDOWN_PROCESS
+ *     LD_ERR_FATAL_DETECT -> SHUTDOWN_NO_ACCESS
+ *     SHUTDOWN_NO_ACCESS -> DISABLE
  */
 static struct mhi_pm_transitions const mhi_state_transitions[] = {
 	/* L0 States */
@@ -110,12 +111,12 @@ static struct mhi_pm_transitions const mhi_state_transitions[] = {
 	{
 		MHI_PM_SYS_ERR_DETECT,
 		MHI_PM_SYS_ERR_PROCESS | MHI_PM_SHUTDOWN_PROCESS |
-		MHI_PM_LD_ERR_FATAL_DETECT
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_NO_ACCESS
 	},
 	{
 		MHI_PM_SYS_ERR_PROCESS,
 		MHI_PM_POR | MHI_PM_SHUTDOWN_PROCESS |
-		MHI_PM_LD_ERR_FATAL_DETECT
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_NO_ACCESS
 	},
 	/* L2 States */
 	{
@@ -125,7 +126,11 @@ static struct mhi_pm_transitions const mhi_state_transitions[] = {
 	/* L3 States */
 	{
 		MHI_PM_LD_ERR_FATAL_DETECT,
-		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_PROCESS
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_NO_ACCESS
+	},
+	{
+		MHI_PM_SHUTDOWN_NO_ACCESS,
+		MHI_PM_DISABLE
 	},
 };
 
@@ -532,6 +537,8 @@ static int mhi_pm_mission_mode_transition(struct mhi_controller *mhi_cntrl)
 	if (MHI_REG_ACCESS_VALID(mhi_cntrl->pm_state))
 		mhi_timesync_log(mhi_cntrl);
 
+	mhi_special_events_pending(mhi_cntrl);
+
 	/* setup sysfs nodes for userspace votes */
 	mhi_create_sysfs(mhi_cntrl);
 
@@ -654,9 +661,6 @@ static void mhi_pm_disable_transition(struct mhi_controller *mhi_cntrl,
 
 	MHI_CNTRL_LOG("Waiting for all pending threads to complete\n");
 	wake_up_all(&mhi_cntrl->state_event);
-	flush_work(&mhi_cntrl->st_worker);
-	flush_work(&mhi_cntrl->fw_worker);
-	flush_work(&mhi_cntrl->low_priority_worker);
 	flush_work(&mhi_cntrl->special_work);
 
 	if (sfr_info && sfr_info->buf_addr) {
@@ -862,7 +866,7 @@ void mhi_process_sys_err(struct mhi_controller *mhi_cntrl)
 	mhi_cntrl->power_down = true;
 	write_unlock_irq(&mhi_cntrl->pm_lock);
 
-	mhi_pm_disable_transition(mhi_cntrl, MHI_PM_SYS_ERR_PROCESS);
+	mhi_queue_disable_transition(mhi_cntrl, MHI_PM_SYS_ERR_PROCESS);
 }
 
 void mhi_pm_st_worker(struct work_struct *work)
@@ -897,6 +901,9 @@ void mhi_pm_st_worker(struct work_struct *work)
 			break;
 		case MHI_ST_TRANSITION_READY:
 			mhi_ready_state_transition(mhi_cntrl);
+			break;
+		case MHI_ST_TRANSITION_DISABLE:
+			mhi_pm_disable_transition(mhi_cntrl, itr->pm_state);
 			break;
 		default:
 			break;
@@ -1067,6 +1074,7 @@ EXPORT_SYMBOL(mhi_control_error);
 void mhi_power_down(struct mhi_controller *mhi_cntrl, bool graceful)
 {
 	enum MHI_PM_STATE cur_state;
+	enum MHI_PM_STATE transition_state = MHI_PM_SHUTDOWN_PROCESS;
 
 	mutex_lock(&mhi_cntrl->pm_mutex);
 

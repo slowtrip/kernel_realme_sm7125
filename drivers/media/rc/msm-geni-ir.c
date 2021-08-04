@@ -964,8 +964,6 @@ static int msm_geni_ir_resume(struct device *dev)
 	u32 status;
 
 	disable_irq_wake(ir->wakeup_irq);
-	if (ir->image_loaded == NULL)
-		return 0;
 
 	/* clear wakeup irq */
 	status = readl_relaxed(ir->base + GENI_IR_IRQ_STATUS);

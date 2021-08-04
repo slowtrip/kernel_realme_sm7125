@@ -201,7 +201,7 @@
 #define MSM_PCIE_MAX_VREG 4
 #define MSM_PCIE_MAX_CLK 13
 #define MSM_PCIE_MAX_PIPE_CLK 1
-#define MAX_RC_NUM 3
+#define MAX_RC_NUM 4
 #define MAX_DEVICE_NUM 20
 #define MAX_SHORT_BDF_NUM 16
 #define PCIE_TLP_RD_SIZE 0x5
@@ -224,6 +224,8 @@
 #define PM_VREG			0x8
 #define PM_PIPE_CLK		  0x10
 #define PM_ALL (PM_IRQ | PM_CLK | PM_GPIO | PM_VREG | PM_PIPE_CLK)
+
+#define L23_READY_POLL_TIMEOUT (100000)
 
 #ifdef CONFIG_PHYS_ADDR_T_64BIT
 #define PCIE_UPPER_ADDR(addr) ((u32)((addr) >> 32))
@@ -596,6 +598,12 @@ struct msm_pcie_phy_info_t {
 	u32	delay;
 };
 
+/* tcsr info structure */
+struct msm_pcie_tcsr_info_t {
+	u32 offset;
+	u32 val;
+};
+
 /* sid info structure */
 struct msm_pcie_sid_info_t {
 	u16	bdf;
@@ -727,6 +735,7 @@ struct msm_pcie_dev_t {
 	ulong				ep_corr_counter;
 	ulong				ep_non_fatal_counter;
 	ulong				ep_fatal_counter;
+	uint64_t			l23_rdy_poll_timeout;
 	bool				 suspending;
 	ulong				wake_counter;
 	u32				num_active_ep;
@@ -734,6 +743,8 @@ struct msm_pcie_dev_t {
 	bool				pending_ep_reg;
 	u32				phy_len;
 	struct msm_pcie_phy_info_t	*phy_sequence;
+	u32				tcsr_len;
+	struct msm_pcie_tcsr_info_t	*tcsr_config;
 	u32				sid_info_len;
 	struct msm_pcie_sid_info_t	*sid_info;
 	u32		ep_shadow[MAX_DEVICE_NUM][PCIE_CONF_SPACE_DW];
@@ -875,6 +886,13 @@ msm_pcie_reset_info[MAX_RC_NUM][MSM_PCIE_MAX_RESET] = {
 		{NULL, "pcie_phy_com_reset", false},
 		{NULL, "pcie_phy_nocsr_com_phy_reset", false},
 		{NULL, "pcie_2_phy_reset", false}
+	},
+	{
+		{NULL, "pcie_3_core_reset", false},
+		{NULL, "pcie_phy_reset", false},
+		{NULL, "pcie_phy_com_reset", false},
+		{NULL, "pcie_phy_nocsr_com_phy_reset", false},
+		{NULL, "pcie_3_phy_reset", false}
 	}
 };
 
@@ -889,6 +907,9 @@ msm_pcie_pipe_reset_info[MAX_RC_NUM][MSM_PCIE_MAX_PIPE_RESET] = {
 	},
 	{
 		{NULL, "pcie_2_phy_pipe_reset", false}
+	},
+	{
+		{NULL, "pcie_3_phy_pipe_reset", false}
 	}
 };
 
@@ -931,10 +952,25 @@ static struct msm_pcie_clk_info_t
 	{NULL, "pcie_2_cfg_ahb_clk", 0, false, true},
 	{NULL, "pcie_2_mstr_axi_clk", 0, true, true},
 	{NULL, "pcie_2_slv_axi_clk", 0, true, true},
-	{NULL, "pcie_2_ldo", 0, false, true},
+	{NULL, "pcie_2_ldo", 0, false, false},
 	{NULL, "pcie_2_smmu_clk", 0, false, false},
 	{NULL, "pcie_2_slv_q2a_axi_clk", 0, false, false},
 	{NULL, "pcie_2_sleep_clk", 0, false, false},
+	{NULL, "pcie_phy_refgen_clk", 0, false, false},
+	{NULL, "pcie_tbu_clk", 0, false, false},
+	{NULL, "pcie_phy_cfg_ahb_clk", 0, false, false},
+	{NULL, "pcie_phy_aux_clk", 0, false, false}
+	},
+	{
+	{NULL, "pcie_3_ref_clk_src", 0, false, false},
+	{NULL, "pcie_3_aux_clk", 1010000, false, true},
+	{NULL, "pcie_3_cfg_ahb_clk", 0, false, true},
+	{NULL, "pcie_3_mstr_axi_clk", 0, true, true},
+	{NULL, "pcie_3_slv_axi_clk", 0, true, true},
+	{NULL, "pcie_3_ldo", 0, false, false},
+	{NULL, "pcie_3_smmu_clk", 0, false, false},
+	{NULL, "pcie_3_slv_q2a_axi_clk", 0, false, false},
+	{NULL, "pcie_3_sleep_clk", 0, false, false},
 	{NULL, "pcie_phy_refgen_clk", 0, false, false},
 	{NULL, "pcie_tbu_clk", 0, false, false},
 	{NULL, "pcie_phy_cfg_ahb_clk", 0, false, false},
@@ -953,6 +989,9 @@ static struct msm_pcie_clk_info_t
 	},
 	{
 	{NULL, "pcie_2_pipe_clk", 125000000, true, true},
+	},
+	{
+	{NULL, "pcie_3_pipe_clk", 125000000, true, true},
 	}
 };
 
@@ -1072,6 +1111,21 @@ static void pcie_phy_dump(struct msm_pcie_dev_t *dev)
 			readl_relaxed(dev->phy + (i + 20)),
 			readl_relaxed(dev->phy + (i + 24)),
 			readl_relaxed(dev->phy + (i + 28)));
+	}
+}
+
+static void pcie_tcsr_init(struct msm_pcie_dev_t *dev)
+{
+	int i;
+	struct msm_pcie_tcsr_info_t *tcsr_cfg;
+
+	i = dev->tcsr_len;
+	tcsr_cfg = dev->tcsr_config;
+	while (i--) {
+		msm_pcie_write_reg(dev->tcsr,
+			tcsr_cfg->offset,
+			tcsr_cfg->val);
+		tcsr_cfg++;
 	}
 }
 
@@ -1386,6 +1440,8 @@ static void msm_pcie_show_status(struct msm_pcie_dev_t *dev)
 		dev->link_turned_on_counter);
 	PCIE_DBG_FS(dev, "link_turned_off_counter: %lu\n",
 		dev->link_turned_off_counter);
+	PCIE_DBG_FS(dev, "l23_rdy_poll_timeout: %llu\n",
+		dev->l23_rdy_poll_timeout);
 }
 
 static void msm_pcie_shadow_dump(struct msm_pcie_dev_t *dev, bool rc)
@@ -2141,14 +2197,57 @@ static ssize_t msm_pcie_enumerate_store(struct device *dev,
 
 static DEVICE_ATTR(enumerate, 0200, NULL, msm_pcie_enumerate_store);
 
+static ssize_t l23_rdy_poll_timeout_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	struct msm_pcie_dev_t *pcie_dev = (struct msm_pcie_dev_t *)
+						dev_get_drvdata(dev);
+
+	return scnprintf(buf, PAGE_SIZE, "%llu\n",
+			pcie_dev->l23_rdy_poll_timeout);
+}
+
+static ssize_t l23_rdy_poll_timeout_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	struct msm_pcie_dev_t *pcie_dev = (struct msm_pcie_dev_t *)
+						dev_get_drvdata(dev);
+	u64 val;
+
+	if (kstrtou64(buf, 0, &val))
+		return -EINVAL;
+
+	pcie_dev->l23_rdy_poll_timeout = val;
+
+	PCIE_DBG(pcie_dev, "PCIe: RC%d: L23_Ready poll timeout: %llu\n",
+		pcie_dev->rc_idx, pcie_dev->l23_rdy_poll_timeout);
+
+	return count;
+}
+static DEVICE_ATTR_RW(l23_rdy_poll_timeout);
+
+static struct attribute *msm_pcie_debug_attrs[] = {
+	&dev_attr_enumerate.attr,
+	&dev_attr_l23_rdy_poll_timeout.attr,
+	NULL,
+};
+
+static const struct attribute_group msm_pcie_debug_attr_group = {
+	.name	= "debug",
+	.attrs	= msm_pcie_debug_attrs,
+};
+
 static void msm_pcie_sysfs_init(struct msm_pcie_dev_t *dev)
 {
 	int ret;
 
-	ret = device_create_file(&dev->pdev->dev, &dev_attr_enumerate);
+	ret = sysfs_create_group(&dev->pdev->dev.kobj,
+			&msm_pcie_debug_attr_group);
 	if (ret)
 		PCIE_DBG_FS(dev,
-			"RC%d: failed to create sysfs enumerate node\n",
+			"RC%d: failed to create sysfs debug group\n",
 			dev->rc_idx);
 }
 
@@ -3675,9 +3774,32 @@ static int msm_pcie_get_resources(struct msm_pcie_dev_t *dev,
 		of_property_read_u32_array(pdev->dev.of_node, "qcom,bw-scale",
 				(u32 *)dev->bw_scale, size / sizeof(u32));
 
-		dev->bw_gen_max = size / sizeof(u32);
+		dev->bw_gen_max = size / sizeof(*dev->bw_scale);
 	} else {
 		PCIE_DBG(dev, "RC%d: bandwidth scaling is not supported\n",
+			dev->rc_idx);
+	}
+
+	size = 0;
+	of_get_property(pdev->dev.of_node, "qcom,tcsr", &size);
+	if (size) {
+		dev->tcsr_config = (struct msm_pcie_tcsr_info_t *)
+			devm_kzalloc(&pdev->dev, size, GFP_KERNEL);
+
+		if (dev->tcsr_config) {
+			dev->tcsr_len =
+				size / sizeof(*dev->tcsr_config);
+
+			of_property_read_u32_array(pdev->dev.of_node,
+				"qcom,tcsr",
+				(unsigned int *)dev->tcsr_config,
+				size / sizeof(dev->tcsr_config->offset));
+		} else {
+			ret = -ENOMEM;
+			goto out;
+		}
+	} else {
+		PCIE_DBG(dev, "RC%d: tcsr is not present in DT\n",
 			dev->rc_idx);
 	}
 
@@ -4082,6 +4204,10 @@ static int msm_pcie_enable(struct msm_pcie_dev_t *dev, u32 options)
 		readl_relaxed(dev->parf + PCIE20_PARF_AXI_MSTR_WR_ADDR_HALT);
 	msm_pcie_write_reg(dev->parf, PCIE20_PARF_AXI_MSTR_WR_ADDR_HALT,
 				BIT(31) | val);
+
+	/* init tcsr */
+	if (dev->tcsr_config)
+		pcie_tcsr_init(dev);
 
 	/* init PCIe PHY */
 	pcie_phy_init(dev);
@@ -6353,6 +6479,99 @@ err:
 }
 EXPORT_SYMBOL(msm_pcie_prevent_l1);
 
+void msm_pcie_allow_l1(struct pci_dev *pci_dev)
+{
+	struct pci_dev *root_pci_dev;
+	struct msm_pcie_dev_t *pcie_dev;
+
+	root_pci_dev = pci_find_pcie_root_port(pci_dev);
+	if (!root_pci_dev)
+		return;
+
+	pcie_dev = PCIE_BUS_PRIV_DATA(root_pci_dev->bus);
+
+	mutex_lock(&pcie_dev->aspm_lock);
+	if (unlikely(--pcie_dev->prevent_l1 < 0))
+		PCIE_ERR(pcie_dev,
+			"PCIe: RC%d: %02x:%02x.%01x: unbalanced prevent_l1: %d < 0\n",
+			pcie_dev->rc_idx, pci_dev->bus->number,
+			PCI_SLOT(pci_dev->devfn), PCI_FUNC(pci_dev->devfn),
+			pcie_dev->prevent_l1);
+
+	if (pcie_dev->prevent_l1) {
+		mutex_unlock(&pcie_dev->aspm_lock);
+		return;
+	}
+
+	msm_pcie_write_mask(pcie_dev->parf + PCIE20_PARF_PM_CTRL, BIT(5), 0);
+	/* enable L1 */
+	msm_pcie_write_mask(pcie_dev->dm_core +
+				(root_pci_dev->pcie_cap + PCI_EXP_LNKCTL),
+				0, PCI_EXP_LNKCTL_ASPM_L1);
+
+	PCIE_DBG2(pcie_dev, "PCIe: RC%d: %02x:%02x.%01x: exit\n",
+		pcie_dev->rc_idx, pci_dev->bus->number,
+		PCI_SLOT(pci_dev->devfn), PCI_FUNC(pci_dev->devfn));
+	mutex_unlock(&pcie_dev->aspm_lock);
+}
+EXPORT_SYMBOL(msm_pcie_allow_l1);
+
+int msm_pcie_prevent_l1(struct pci_dev *pci_dev)
+{
+	struct pci_dev *root_pci_dev;
+	struct msm_pcie_dev_t *pcie_dev;
+	u32 cnt = 0;
+	u32 cnt_max = 1000; /* 100ms timeout */
+	int ret = 0;
+
+	root_pci_dev = pci_find_pcie_root_port(pci_dev);
+	if (!root_pci_dev)
+		return -ENODEV;
+
+	pcie_dev = PCIE_BUS_PRIV_DATA(root_pci_dev->bus);
+
+	/* disable L1 */
+	mutex_lock(&pcie_dev->aspm_lock);
+	if (pcie_dev->prevent_l1++) {
+		mutex_unlock(&pcie_dev->aspm_lock);
+		return 0;
+	}
+
+	msm_pcie_write_mask(pcie_dev->dm_core +
+				(root_pci_dev->pcie_cap + PCI_EXP_LNKCTL),
+				PCI_EXP_LNKCTL_ASPM_L1, 0);
+	msm_pcie_write_mask(pcie_dev->parf + PCIE20_PARF_PM_CTRL, 0, BIT(5));
+
+	/* confirm link is in L0 */
+	while (((readl_relaxed(pcie_dev->parf + PCIE20_PARF_LTSSM) &
+		MSM_PCIE_LTSSM_MASK)) != MSM_PCIE_LTSSM_L0) {
+		if (unlikely(cnt++ >= cnt_max)) {
+			PCIE_ERR(pcie_dev,
+				"PCIe: RC%d: %02x:%02x.%01x: failed to transition to L0\n",
+				pcie_dev->rc_idx, pci_dev->bus->number,
+				PCI_SLOT(pci_dev->devfn),
+				PCI_FUNC(pci_dev->devfn));
+			ret = -EIO;
+			goto err;
+		}
+
+		usleep_range(100, 105);
+	}
+
+	PCIE_DBG2(pcie_dev, "PCIe: RC%d: %02x:%02x.%01x: exit\n",
+		pcie_dev->rc_idx, pci_dev->bus->number,
+		PCI_SLOT(pci_dev->devfn), PCI_FUNC(pci_dev->devfn));
+	mutex_unlock(&pcie_dev->aspm_lock);
+
+	return 0;
+err:
+	mutex_unlock(&pcie_dev->aspm_lock);
+	msm_pcie_allow_l1(pci_dev);
+
+	return ret;
+}
+EXPORT_SYMBOL(msm_pcie_prevent_l1);
+
 int msm_pcie_set_link_bandwidth(struct pci_dev *pci_dev, u16 target_link_speed,
 				u16 target_link_width)
 {
@@ -6373,6 +6592,15 @@ int msm_pcie_set_link_bandwidth(struct pci_dev *pci_dev, u16 target_link_speed,
 		return -ENODEV;
 
 	pcie_dev = PCIE_BUS_PRIV_DATA(root_pci_dev->bus);
+
+	if (target_link_speed > pcie_dev->bw_gen_max ||
+		(pcie_dev->target_link_speed &&
+		target_link_speed > pcie_dev->target_link_speed)) {
+		PCIE_DBG(pcie_dev,
+			"PCIe: RC%d: invalid target link speed: %d\n",
+			pcie_dev->rc_idx, target_link_speed);
+		return -EINVAL;
+	}
 
 	pcie_capability_read_word(root_pci_dev, PCI_EXP_LNKSTA, &link_status);
 
@@ -6569,7 +6797,7 @@ static int msm_pci_iommu_init(struct msm_root_dev_t *root_dev)
 	ret = arm_iommu_attach_device(&pci_dev->dev, mapping);
 	if (ret) {
 		PCIE_ERR(pcie_dev,
-			"failed to iommu attach device (%d)\n",
+			"PCIe: RC%d: failed to iommu attach device (%d)\n",
 			pcie_dev->rc_idx, ret);
 		goto release_mapping;
 	}
@@ -6619,6 +6847,7 @@ int msm_pci_probe(struct pci_dev *pci_dev,
 
 static struct pci_device_id msm_pci_device_id[] = {
 	{PCI_DEVICE(0x17cb, 0x0108)},
+	{PCI_DEVICE(0x17cb, 0x0109)},
 	{PCI_DEVICE(0x17cb, 0x1000)},
 	{0},
 };
@@ -6696,6 +6925,7 @@ static int __init pcie_init(void)
 		spin_lock_init(&msm_pcie_dev[i].wakeup_lock);
 		spin_lock_init(&msm_pcie_dev[i].irq_lock);
 		msm_pcie_dev[i].drv_ready = false;
+		msm_pcie_dev[i].l23_rdy_poll_timeout = L23_READY_POLL_TIMEOUT;
 	}
 	for (i = 0; i < MAX_RC_NUM * MAX_DEVICE_NUM; i++) {
 		msm_pcie_dev_tbl[i].bdf = 0;
@@ -6834,7 +7064,8 @@ static int msm_pcie_pm_suspend(struct pci_dev *dev,
 		pcie_dev->rc_idx);
 
 	ret_l23 = readl_poll_timeout((pcie_dev->parf
-		+ PCIE20_PARF_PM_STTS), val, (val & BIT(5)), 10000, 100000);
+		+ PCIE20_PARF_PM_STTS), val, (val & BIT(5)), 10000,
+		pcie_dev->l23_rdy_poll_timeout);
 
 	/* check L23_Ready */
 	PCIE_DBG(pcie_dev, "RC%d: PCIE20_PARF_PM_STTS is 0x%x.\n",
@@ -7014,7 +7245,8 @@ int msm_pcie_pm_control(enum msm_pcie_pm_opt pm_opt, u32 busnr, void *user,
 {
 	int ret = 0;
 	struct pci_dev *dev;
-	u32 rc_idx = 0;
+	u32 rc_idx = 0, count = 0;
+	u16 device_id;
 	struct msm_pcie_dev_t *pcie_dev;
 
 	PCIE_GEN_DBG("PCIe: pm_opt:%d;busnr:%d;options:%d\n",
@@ -7104,6 +7336,23 @@ int msm_pcie_pm_control(enum msm_pcie_pm_opt pm_opt, u32 busnr, void *user,
 				"PCIe: RC%d: requested to resume when link is not disabled:%d. Number of active EP(s): %d\n",
 				rc_idx, msm_pcie_dev[rc_idx].link_status,
 				msm_pcie_dev[rc_idx].num_active_ep);
+			pci_read_config_word((struct pci_dev *)user,
+						PCI_DEVICE_ID, &device_id);
+			while (device_id != (((struct pci_dev *)user)->device)
+					&& count < LINK_UP_CHECK_MAX_COUNT) {
+				usleep_range(LINK_UP_TIMEOUT_US_MIN,
+						LINK_UP_TIMEOUT_US_MAX);
+				pci_read_config_word((struct pci_dev *)user,
+						PCI_DEVICE_ID, &device_id);
+				PCIE_DBG(&msm_pcie_dev[rc_idx],
+					"PCIe: RC:%d, device_id_read:0x%x\n",
+					rc_idx, device_id);
+				count++;
+			}
+			if (count >= LINK_UP_CHECK_MAX_COUNT)
+				PCIE_ERR(&msm_pcie_dev[rc_idx],
+					"PCIe: RC:%d invalid device id\n",
+					rc_idx);
 			break;
 		}
 

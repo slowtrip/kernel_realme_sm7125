@@ -69,76 +69,6 @@ static const struct drm_prop_enum_list e_qsync_mode[] = {
 	{SDE_RM_QSYNC_ONE_SHOT_MODE,	"one_shot"},
 };
 
-#ifndef VENDOR_EDIT
-/* Hujie@PSW.MM.Display.LCD.Stable,2019-07-16 Add for global hightlight mode */
-extern u8 readvalue;
-extern int dsi_display_read_panel_reg_for_highlight(struct dsi_display *display,u8 cmd, void *data, size_t len);
-static int readcount = 0;
-#endif
-
-#ifdef VENDOR_EDIT
-static int backlight_remapping_into_tddic_reg(int level_brightness, struct dsi_display *display)
-{
-    int level_temp, value_a, value_b;
-    int level = level_brightness;
-    if ( level > 0) {
-        if (display->panel->bl_config.bl_map) {
-            if (level%32 > 0)
-                level_temp = level/32 + 1;
-            else
-                level_temp = level/32;
-
-            level_temp = level_temp - 1;
-
-            if((level_temp*2 + 1) > display->panel->bl_config.bl_map_size) {
-                pr_err(" %s INVALID brightness level,return bl_max_level = %d\n", __func__, display->panel->bl_config.bl_max_level);
-                return display->panel->bl_config.bl_max_level;
-            }
-
-            value_a = display->panel->bl_config.bl_map[level_temp*2];
-            value_b = display->panel->bl_config.bl_map[level_temp*2 + 1];
-
-            #ifndef ODM_LQ_EDIT
-            /*zengjianxiong@ODM_LQ@Multimedia.Dispaly,2020/01/04,modified for set min brightness about 2nit*/
-            if (level <= 383)
-                level = value_a*level/100 + value_b;
-            else
-                level = value_a*level/100 - value_b;
-            #else /*ODM_LQ_EDIT*/
-            if(level<=20)
-                level = level*5/7+8;
-            else if(20<level && level<= 383)
-                level = value_a*level/100 + value_b;
-            else
-                level = value_a*level/100 - value_b;
-            #endif/*ODM_LQ_EDIT*/
-
-
-            pr_debug(" %s value_a %d value_b %d   level_brightness %d -> level %lld\n", __func__, value_a, value_b, level_brightness, level);
-
-            if (level < 0) {
-                pr_err(" %s backlight value had been converted into a minus type = %d\n", __func__, level);
-                return 0;
-            }
-        }
-
-        if (level < display->panel->bl_config.bl_min_level)
-            level = display->panel->bl_config.bl_min_level;
-        if (level > display->panel->bl_config.bl_max_level)
-            level = display->panel->bl_config.bl_max_level;
-        return level;
-    }
-
-    return 0;
-}
-#endif
-
-static const struct drm_prop_enum_list e_frame_trigger_mode[] = {
-	{FRAME_DONE_WAIT_DEFAULT, "default"},
-	{FRAME_DONE_WAIT_SERIALIZE, "serialize_frame_trigger"},
-	{FRAME_DONE_WAIT_POSTED_START, "posted_start"},
-};
-
 static int sde_backlight_device_update_status(struct backlight_device *bd)
 {
 	int brightness;
@@ -169,8 +99,7 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 	if (!bl_lvl && brightness)
 		bl_lvl = 1;
 
-	if (display->panel->bl_config.bl_update ==
-		BL_UPDATE_DELAY_UNTIL_FIRST_FRAME && !c_conn->allow_bl_update) {
+	if (!c_conn->allow_bl_update) {
 		c_conn->unset_bl_level = bl_lvl;
 		return 0;
 	}
@@ -587,18 +516,8 @@ static int _sde_connector_update_bl_scale(struct sde_connector *c_conn)
 #endif /* VENDOR_EDIT */
 
 	bl_config = &dsi_display->panel->bl_config;
-
-#ifdef VENDOR_EDIT
-		/*liping-m@PSW.MM.Display.LCD.Stable,2019/6/25 fix bug2087450 hbm backlight problem */
-		if(bl_config->bl_level > 1023){
-			c_conn->unset_bl_level = bl_config->bl_level;
-			mutex_unlock(&bd->update_lock);
-			return 0;
-		}
-#endif /* VENDOR_EDIT */
-
-	if (dsi_display->panel->bl_config.bl_update ==
-		BL_UPDATE_DELAY_UNTIL_FIRST_FRAME && !c_conn->allow_bl_update) {
+	
+	if (!c_conn->allow_bl_update) {
 		c_conn->unset_bl_level = bl_config->bl_level;
 #ifdef VENDOR_EDIT
 /*Gou shengjun@PSW.MM.Display.LCD.Stable,2019-03-7 fix backlight race problem */
@@ -661,33 +580,6 @@ void sde_connector_set_qsync_params(struct drm_connector *connector)
 			c_conn->qsync_updated = true;
 			c_conn->qsync_mode = qsync_propval;
 		}
-	}
-}
-
-#ifdef VENDOR_EDIT
-/* Gou shengjun@PSW.MM.Display.Service.Feature,2018/11/21
- * For OnScreenFingerprint feature
-*/
-extern bool sde_crtc_get_fingerprint_mode(struct drm_crtc_state *crtc_state);
-extern bool sde_crtc_get_fingerprint_pressed(struct drm_crtc_state *crtc_state);
-extern int oppo_display_get_hbm_mode(void);
-extern int sde_crtc_set_onscreenfinger_defer_sync(struct drm_crtc_state *crtc_state, bool defer_sync);
-extern int oppo_dimlayer_bl;
-extern int oppo_dimlayer_bl_enable_real;
-extern int oppo_dimlayer_bl_enable;
-extern int oppo_dimlayer_bl_enabled;
-extern int oppo_dimlayer_bl_delay;
-extern int oppo_dimlayer_bl_delay_after;
-
-int sde_connector_update_backlight(struct drm_connector *connector)
-{
-	if (oppo_dimlayer_bl != oppo_dimlayer_bl_enabled) {
-		struct sde_connector *c_conn = to_sde_connector(connector);
-
-		oppo_dimlayer_bl_enabled = oppo_dimlayer_bl;
-		usleep_range(oppo_dimlayer_bl_delay, oppo_dimlayer_bl_delay + 100);
-		_sde_connector_update_bl_scale(c_conn);
-		usleep_range(oppo_dimlayer_bl_delay_after, oppo_dimlayer_bl_delay_after + 100);
 	}
 
 	return 0;
@@ -945,21 +837,31 @@ void sde_connector_helper_bridge_disable(struct drm_connector *connector)
 {
 	int rc;
 	struct sde_connector *c_conn = NULL;
+	struct dsi_display *display;
+	bool poms_pending = false;
 
 	if (!connector)
 		return;
 
-	rc = _sde_connector_update_dirty_properties(connector);
-	if (rc) {
-		SDE_ERROR("conn %d final pre kickoff failed %d\n",
-				connector->base.id, rc);
-		SDE_EVT32(connector->base.id, SDE_EVTLOG_ERROR);
+	c_conn = to_sde_connector(connector);
+
+	if (c_conn->connector_type == DRM_MODE_CONNECTOR_DSI) {
+		display = (struct dsi_display *) c_conn->display;
+		poms_pending = display->poms_pending;
+	}
+
+	if (!poms_pending) {
+		rc = _sde_connector_update_dirty_properties(connector);
+		if (rc) {
+			SDE_ERROR("conn %d final pre kickoff failed %d\n",
+					connector->base.id, rc);
+			SDE_EVT32(connector->base.id, SDE_EVTLOG_ERROR);
+		}
 	}
 
 	/* Disable ESD thread */
 	sde_connector_schedule_status_work(connector, false);
 
-	c_conn = to_sde_connector(connector);
 	if (c_conn->bl_device) {
 		c_conn->bl_device->props.power = FB_BLANK_POWERDOWN;
 		c_conn->bl_device->props.state |= BL_CORE_FBBLANK;
@@ -1475,7 +1377,15 @@ static int sde_connector_atomic_set_property(struct drm_connector *connector,
 		c_conn->bl_scale_ad = val;
 		c_conn->bl_scale_dirty = true;
 		break;
-	case CONNECTOR_PROP_HDR_METADATA:
+	case CONNECTOR_PROP_QSYNC_MODE:
+		msm_property_set_dirty(&c_conn->property_info,
+				&c_state->property_state, idx);
+		break;
+	default:
+		break;
+	}
+
+	if (idx == CONNECTOR_PROP_HDR_METADATA) {
 		rc = _sde_connector_set_ext_hdr_info(c_conn,
 			c_state, (void __user *)(uintptr_t)val);
 		if (rc)

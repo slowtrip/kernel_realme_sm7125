@@ -673,6 +673,12 @@ int snd_rawmidi_output_params(struct snd_rawmidi_substream *substream,
 			kfree(newbuf);
 			return -EBUSY;
 		}
+		spin_lock_irqsave(&runtime->lock, flags);
+		if (runtime->buffer_ref) {
+			spin_unlock_irq(&runtime->lock);
+			kfree(newbuf);
+			return -EBUSY;
+		}
 		oldbuf = runtime->buffer;
 		runtime->buffer = newbuf;
 		runtime->buffer_size = params->buffer_size;
@@ -1013,8 +1019,10 @@ static long snd_rawmidi_kernel_read1(struct snd_rawmidi_substream *substream,
 		if (userbuf) {
 			spin_unlock_irqrestore(&runtime->lock, flags);
 			if (copy_to_user(userbuf + result,
-					 runtime->buffer + appl_ptr, count1))
+					 runtime->buffer + appl_ptr, count1)) {
+				mutex_unlock(&runtime->realloc_mutex);
 				err = -EFAULT;
+			}
 			spin_lock_irqsave(&runtime->lock, flags);
 			if (err)
 				goto out;
@@ -1025,6 +1033,8 @@ static long snd_rawmidi_kernel_read1(struct snd_rawmidi_substream *substream,
  out:
 	snd_rawmidi_buffer_unref(runtime);
 	spin_unlock_irqrestore(&runtime->lock, flags);
+	if (userbuf)
+		mutex_unlock(&runtime->realloc_mutex);
 	return result > 0 ? result : err;
 }
 

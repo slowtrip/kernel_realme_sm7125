@@ -76,22 +76,6 @@
 		pinctrl-0 = <&ext_mclk_1_sck_active>;
 		pinctrl-1 = <&ext_mclk_1_sck_sleep>;
 	};
-
-	pri_spdiftx_gpios: pri_spdiftx_pinctrl {
-		compatible = "qcom,msm-cdc-pinctrl";
-		pinctrl-names = "aud_active", "aud_sleep";
-		pinctrl-0 = <&pri_spdiftx_active>;
-		pinctrl-1 = <&pri_spdiftx_sleep>;
-		qcom,lpi-gpios;
-	};
-
-	sec_spdiftx_gpios: sec_spdiftx_pinctrl {
-		compatible = "qcom,msm-cdc-pinctrl";
-		pinctrl-names = "aud_active", "aud_sleep";
-		pinctrl-0 = <&sec_spdiftx_active>;
-		pinctrl-1 = <&sec_spdiftx_sleep>;
-		qcom,lpi-gpios;
-	};
 };
 
 &q6core {

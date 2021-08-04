@@ -189,8 +189,6 @@ static void mdm_handle_clink_evt(enum esoc_evt evt,
 			esoc_mdm_log(
 			"Modem in crash state or not booted. Ignoring.\n");
 			return;
-		}
-		esoc_mdm_log("Setting crash flag\n");
 		mdm_drv->mode = CRASH;
 		queue_work(mdm_drv->mdm_queue, &mdm_drv->ssr_work);
 		break;
@@ -218,6 +216,7 @@ static void mdm_ssr_fn(struct work_struct *work)
 
 	esoc_client_link_mdm_crash(mdm_drv->esoc_clink);
 	mdm_wait_for_status_low(mdm, false);
+
 	esoc_mdm_log("Starting SSR work\n");
 
 	/*

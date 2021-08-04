@@ -1973,7 +1973,7 @@ int qcom_batt_init(struct charger_param *chg_param)
 	pl_config_init(chip, chg_param->smb_version);
 	chip->restricted_current = DEFAULT_RESTRICTED_CURRENT_UA;
 
-	chip->pl_ws = wakeup_source_register("qcom-battery");
+	chip->pl_ws = wakeup_source_register(NULL, "qcom-battery");
 	if (!chip->pl_ws)
 		goto cleanup;
 
@@ -2050,6 +2050,11 @@ int qcom_batt_init(struct charger_param *chg_param)
 	}
 
 	vote(chip->pl_disable_votable, PL_INDIRECT_VOTER, true, 0);
+
+	INIT_DELAYED_WORK(&chip->status_change_work, status_change_work);
+	INIT_WORK(&chip->pl_taper_work, pl_taper_work);
+	INIT_WORK(&chip->pl_disable_forever_work, pl_disable_forever_work);
+	INIT_DELAYED_WORK(&chip->fcc_stepper_work, fcc_stepper_work);
 
 	rc = pl_register_notifier(chip);
 	if (rc < 0) {

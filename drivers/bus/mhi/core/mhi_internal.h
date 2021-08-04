@@ -252,6 +252,9 @@ extern struct bus_type mhi_bus_type;
 #define REMOTE_TICKS_TO_US(x) (div_u64((x) * 100ULL, \
 			       div_u64(mhi_cntrl->remote_timer_freq, 10000ULL)))
 
+/* Wait time to allow runtime framework to resume MHI in milliseconds */
+#define MHI_RESUME_TIME	(30000)
+
 struct mhi_event_ctxt {
 	u32 reserved : 8;
 	u32 intmodc : 8;
@@ -439,6 +442,7 @@ enum MHI_ST_TRANSITION {
 	MHI_ST_TRANSITION_READY,
 	MHI_ST_TRANSITION_SBL,
 	MHI_ST_TRANSITION_MISSION_MODE,
+	MHI_ST_TRANSITION_DISABLE,
 	MHI_ST_TRANSITION_MAX,
 };
 
@@ -470,6 +474,7 @@ enum {
 	MHI_PM_BIT_SYS_ERR_PROCESS,
 	MHI_PM_BIT_SHUTDOWN_PROCESS,
 	MHI_PM_BIT_LD_ERR_FATAL_DETECT,
+	MHI_PM_BIT_SHUTDOWN_NO_ACCESS,
 	MHI_PM_BIT_MAX
 };
 
@@ -491,6 +496,7 @@ enum MHI_PM_STATE {
 	MHI_PM_SHUTDOWN_PROCESS = BIT(MHI_PM_BIT_SHUTDOWN_PROCESS),
 	/* link not accessible */
 	MHI_PM_LD_ERR_FATAL_DETECT = BIT(MHI_PM_BIT_LD_ERR_FATAL_DETECT),
+	MHI_PM_SHUTDOWN_NO_ACCESS = BIT(MHI_PM_BIT_SHUTDOWN_NO_ACCESS),
 };
 
 #define MHI_REG_ACCESS_VALID(pm_state) ((pm_state & (MHI_PM_POR | MHI_PM_M0 | \
@@ -499,7 +505,7 @@ enum MHI_PM_STATE {
 		MHI_PM_SYS_ERR_PROCESS | MHI_PM_SHUTDOWN_PROCESS | \
 		MHI_PM_FW_DL_ERR)))
 #define MHI_PM_IN_ERROR_STATE(pm_state) (pm_state >= MHI_PM_FW_DL_ERR)
-#define MHI_PM_IN_FATAL_STATE(pm_state) (pm_state == MHI_PM_LD_ERR_FATAL_DETECT)
+#define MHI_PM_IN_FATAL_STATE(pm_state) (pm_state >= MHI_PM_LD_ERR_FATAL_DETECT)
 #define MHI_DB_ACCESS_VALID(mhi_cntrl) (mhi_cntrl->pm_state & \
 					mhi_cntrl->db_access)
 #define MHI_WAKE_DB_CLEAR_VALID(pm_state) (pm_state & (MHI_PM_M0 | \
@@ -529,15 +535,15 @@ enum MHI_XFER_TYPE {
 #define MHI_DEV_WAKE_DB (127)
 #define MHI_MAX_MTU (0xffff)
 
-#define MHI_TIMESYNC_DB_SETUP(er_index) ((MHI_TIMESYNC_CHAN_DB << \
-	TIMESYNC_CFG_CHAN_DB_ID_SHIFT) & TIMESYNC_CFG_CHAN_DB_ID_MASK | \
-	(1 << TIMESYNC_CFG_ENABLED_SHIFT) & TIMESYNC_CFG_ENABLED_MASK | \
-	((er_index) << TIMESYNC_CFG_ER_ID_SHIFT) & TIMESYNC_CFG_ER_ID_MASK)
+#define MHI_TIMESYNC_DB_SETUP(er_index) (((MHI_TIMESYNC_CHAN_DB << \
+	TIMESYNC_CFG_CHAN_DB_ID_SHIFT) & TIMESYNC_CFG_CHAN_DB_ID_MASK) | \
+	((1 << TIMESYNC_CFG_ENABLED_SHIFT) & TIMESYNC_CFG_ENABLED_MASK) | \
+	(((er_index) << TIMESYNC_CFG_ER_ID_SHIFT) & TIMESYNC_CFG_ER_ID_MASK))
 
-#define MHI_BW_SCALE_SETUP(er_index) ((MHI_BW_SCALE_CHAN_DB << \
-	BW_SCALE_CFG_CHAN_DB_ID_SHIFT) & BW_SCALE_CFG_CHAN_DB_ID_MASK | \
-	(1 << BW_SCALE_CFG_ENABLED_SHIFT) & BW_SCALE_CFG_ENABLED_MASK | \
-	((er_index) << BW_SCALE_CFG_ER_ID_SHIFT) & BW_SCALE_CFG_ER_ID_MASK)
+#define MHI_BW_SCALE_SETUP(er_index) (((MHI_BW_SCALE_CHAN_DB << \
+	BW_SCALE_CFG_CHAN_DB_ID_SHIFT) & BW_SCALE_CFG_CHAN_DB_ID_MASK) | \
+	((1 << BW_SCALE_CFG_ENABLED_SHIFT) & BW_SCALE_CFG_ENABLED_MASK) | \
+	(((er_index) << BW_SCALE_CFG_ER_ID_SHIFT) & BW_SCALE_CFG_ER_ID_MASK))
 
 #define MHI_BW_SCALE_RESULT(status, seq) ((status & 0xF) << 8 | (seq & 0xFF))
 #define MHI_BW_SCALE_NACK 0xF
@@ -600,6 +606,7 @@ struct mhi_pm_transitions {
 struct state_transition {
 	struct list_head node;
 	enum MHI_ST_TRANSITION state;
+	enum MHI_PM_STATE pm_state;
 };
 
 struct mhi_ctxt {

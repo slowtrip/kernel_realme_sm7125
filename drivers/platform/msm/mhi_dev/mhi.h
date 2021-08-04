@@ -371,6 +371,11 @@ enum mhi_dev_transfer_type {
 	MHI_DEV_DMA_ASYNC,
 };
 
+struct msi_buf_cb_data {
+	u32 *buf;
+	dma_addr_t dma_addr;
+};
+
 struct mhi_dev_channel;
 
 struct mhi_dev_ring {
@@ -407,6 +412,7 @@ struct mhi_dev_ring {
 	union mhi_dev_ring_ctx			*ring_ctx;
 	/* ring_ctx_shadow -> tracking ring_ctx in the host */
 	union mhi_dev_ring_ctx			*ring_ctx_shadow;
+	struct msi_buf_cb_data		msi_buf;
 	void (*ring_cb)(struct mhi_dev *dev,
 			union mhi_dev_ring_element_type *el,
 			void *ctx);
@@ -494,8 +500,6 @@ struct mhi_dev_channel {
 	/* td size being read/written from/to so far */
 	uint32_t			td_size;
 	uint32_t			pend_wr_count;
-	uint32_t			msi_cnt;
-	uint32_t			flush_req_cnt;
 	bool				skip_td;
 };
 
@@ -511,6 +515,9 @@ struct mhi_dev {
 
 	uint32_t			*mmio_backup;
 	struct mhi_config		cfg;
+	u32				msi_data;
+	u32				msi_lower;
+	spinlock_t			msi_lock;
 	bool				mmio_initialized;
 
 	spinlock_t			lock;
@@ -610,12 +617,8 @@ struct mhi_dev {
 	/*Register for interrupt*/
 	bool				mhi_int;
 	bool				mhi_int_en;
-
 	/* Enable M2 autonomous mode from MHI */
 	bool				enable_m2;
-
-	/* Dont timeout waiting for M0 */
-	bool				no_m0_timeout;
 
 	/* Registered client callback list */
 	struct list_head		client_cb_list;

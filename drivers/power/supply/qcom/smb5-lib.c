@@ -1577,17 +1577,6 @@ int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 			    POWER_SUPPLY_TYPEC_SINK_DEBUG_ACCESSORY)
 		return 0;
 
-	if (chg->connector_type == POWER_SUPPLY_CONNECTOR_TYPEC) {
-		rc = smblib_masked_write(chg, USB_CMD_PULLDOWN_REG,
-				EN_PULLDOWN_USB_IN_BIT,
-				suspend ? 0 : EN_PULLDOWN_USB_IN_BIT);
-		if (rc < 0) {
-			smblib_err(chg, "Couldn't write %s to EN_PULLDOWN_USB_IN_BIT rc=%d\n",
-				suspend ? "disable" : "enable", rc);
-			goto out;
-		}
-	}
-
 	if (suspend)
 		return smblib_set_usb_suspend(chg, true);
 
@@ -1675,6 +1664,11 @@ int smblib_get_irq_status(struct smb_charger *chg,
 {
 	int rc;
 	u8 reg;
+
+	if (chg->wa_flags & SKIP_MISC_PBS_IRQ_WA) {
+		val->intval = 0;
+		return 0;
+	}
 
 	mutex_lock(&chg->irq_status_lock);
 	/* Report and clear cached status */
@@ -2131,6 +2125,18 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 	bool usb_online, dc_online;
 	u8 stat;
 	int rc, suspend = 0;
+
+	if (chg->fake_chg_status_on_debug_batt) {
+		rc = smblib_get_prop_from_bms(chg,
+				POWER_SUPPLY_PROP_DEBUG_BATTERY, &pval);
+		if (rc < 0) {
+			pr_err_ratelimited("Couldn't get debug battery prop rc=%d\n",
+					rc);
+		} else if (pval.intval == 1) {
+			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
+			return 0;
+		}
+	}
 
 	if (chg->dbc_usbov) {
 		rc = smblib_get_prop_usb_present(chg, &pval);
@@ -3313,7 +3319,7 @@ int smblib_set_prop_dc_reset(struct smb_charger *chg)
 
 	rc = smblib_write(chg, DCIN_CMD_PON_REG, DCIN_PON_BIT | MID_CHG_BIT);
 	if (rc < 0) {
-		smblib_err(chg, "Couldn't write %d to DCIN_CMD_PON_REG rc=%d\n",
+		smblib_err(chg, "Couldn't write %lu to DCIN_CMD_PON_REG rc=%d\n",
 			DCIN_PON_BIT | MID_CHG_BIT, rc);
 		return rc;
 	}
@@ -3553,12 +3559,36 @@ int smblib_get_prop_usb_voltage_now(struct smb_charger *chg,
 				    union power_supply_propval *val)
 {
 	union power_supply_propval pval = {0, };
-	int rc;
+	int rc, ret = 0;
+	u8 reg;
+
+	mutex_lock(&chg->adc_lock);
+
+	if (chg->wa_flags & USBIN_ADC_WA) {
+		/* Store ADC channel config in order to restore later */
+		rc = smblib_read(chg, BATIF_ADC_CHANNEL_EN_REG, &reg);
+		if (rc < 0) {
+			smblib_err(chg, "Couldn't read ADC config rc=%d\n", rc);
+			ret = rc;
+			goto unlock;
+		}
+
+		/* Disable all ADC channels except IBAT channel */
+		rc = smblib_write(chg, BATIF_ADC_CHANNEL_EN_REG,
+						IBATT_CHANNEL_EN_BIT);
+		if (rc < 0) {
+			smblib_err(chg, "Couldn't disable ADC channels rc=%d\n",
+						rc);
+			ret = rc;
+			goto unlock;
+		}
+	}
 
 	rc = smblib_get_prop_usb_present(chg, &pval);
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't get usb presence status rc=%d\n", rc);
-		return -ENODATA;
+		ret = -ENODATA;
+		goto restore_adc_config;
 	}
 
 	/*
@@ -3567,9 +3597,26 @@ int smblib_get_prop_usb_voltage_now(struct smb_charger *chg,
 	 * voltages.
 	 */
 	if (chg->chg_param.smb_version == PM8150B_SUBTYPE && pval.intval)
-		return smblib_read_mid_voltage_chan(chg, val);
+		rc = smblib_read_mid_voltage_chan(chg, val);
 	else
-		return smblib_read_usbin_voltage_chan(chg, val);
+		rc = smblib_read_usbin_voltage_chan(chg, val);
+	if (rc < 0) {
+		smblib_err(chg, "Failed to read USBIN over vadc, rc=%d\n", rc);
+		ret = rc;
+	}
+
+restore_adc_config:
+	 /* Restore ADC channel config */
+	if (chg->wa_flags & USBIN_ADC_WA)
+		rc = smblib_write(chg, BATIF_ADC_CHANNEL_EN_REG, reg);
+		if (rc < 0)
+			smblib_err(chg, "Couldn't write ADC config rc=%d\n",
+						rc);
+
+unlock:
+	mutex_unlock(&chg->adc_lock);
+
+	return ret;
 }
 
 int smblib_get_prop_vph_voltage_now(struct smb_charger *chg,
@@ -4433,11 +4480,6 @@ int smblib_set_prop_typec_power_role(struct smb_charger *chg,
 	u8 power_role;
 	enum power_supply_typec_mode typec_mode;
 	bool snk_attached = false, src_attached = false, is_pr_lock = false;
-
-#ifdef VENDOR_EDIT
-/* Yichun.Chen	PSW.BSP.CHG  2019-05-08  for otg switch */
-	return rc;
-#endif
 
 	if (chg->connector_type == POWER_SUPPLY_CONNECTOR_MICRO_USB)
 		return 0;
@@ -6384,6 +6426,7 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 	struct smb_irq_data *irq_data = data;
 	struct smb_charger *chg = irq_data->parent_data;
 	u8 stat;
+	bool attached = false;
 	int rc;
 
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
@@ -6395,8 +6438,9 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 		return IRQ_HANDLED;
 	}
 
-	if (stat & TYPEC_ATTACH_DETACH_STATE_BIT) {
+	attached = !!(stat & TYPEC_ATTACH_DETACH_STATE_BIT);
 
+	if (attached) {
 		smblib_lpd_clear_ra_open_work(chg);
 
 		rc = smblib_read(chg, TYPE_C_MISC_STATUS_REG, &stat);
@@ -6447,6 +6491,17 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 			chg->sink_src_mode = UNATTACHED_MODE;
 			chg->early_usb_attach = false;
 			smblib_apsd_enable(chg, true);
+
+			/*
+			 * Restore DRP mode on type-C cable disconnect if role
+			 * swap is not in progress, to ensure forced sink or src
+			 * mode configuration is reset properly.
+			 */
+			if (chg->dual_role) {
+				smblib_force_dr_mode(chg,
+						DUAL_ROLE_PROP_MODE_NONE);
+				chg->typec_role_swap_failed = false;
+			}
 		}
 
 		if (chg->lpd_stage == LPD_STAGE_FLOAT_CANCEL)
@@ -6454,7 +6509,159 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 					msecs_to_jiffies(1000));
 	}
 
+	rc = smblib_masked_write(chg, USB_CMD_PULLDOWN_REG,
+			EN_PULLDOWN_USB_IN_BIT,
+			attached ?  0 : EN_PULLDOWN_USB_IN_BIT);
+	if (rc < 0)
+		smblib_err(chg, "Couldn't configure pulldown on USB_IN rc=%d\n",
+				rc);
+
 	power_supply_changed(chg->usb_psy);
+
+	return IRQ_HANDLED;
+}
+
+static void dcin_aicl(struct smb_charger *chg)
+{
+	int rc, icl, icl_save;
+	int input_present;
+
+	/*
+	 * Hold awake votable to prevent pm_relax being called prior to
+	 * completion of this work.
+	 */
+	vote(chg->awake_votable, DCIN_AICL_VOTER, true, 0);
+
+increment:
+	mutex_lock(&chg->dcin_aicl_lock);
+
+	rc = smblib_get_charge_param(chg, &chg->param.dc_icl, &icl);
+	if (rc < 0)
+		goto unlock;
+
+	if (icl == chg->wls_icl_ua) {
+		/* Upper limit reached; do nothing */
+		smblib_dbg(chg, PR_WLS, "hit max ICL: stop\n");
+		goto unlock;
+	}
+
+	icl = min(chg->wls_icl_ua, icl + DCIN_ICL_STEP_UA);
+	icl_save = icl;
+
+	rc = smblib_set_charge_param(chg, &chg->param.dc_icl, icl);
+	if (rc < 0)
+		goto unlock;
+
+	mutex_unlock(&chg->dcin_aicl_lock);
+
+	smblib_dbg(chg, PR_WLS, "icl: %d mA\n", (icl / 1000));
+
+	/* Check to see if DC is still present before and after sleep */
+	rc = smblib_is_input_present(chg, &input_present);
+	if (!(input_present & INPUT_PRESENT_DC) || rc < 0)
+		goto unvote;
+
+	/*
+	 * Wait awhile to check for any DCIN_UVs (the UV handler reduces the
+	 * ICL). If the adaptor collapses, the ICL read after waking up will be
+	 * lesser, indicating that the AICL process is complete.
+	 */
+	msleep(500);
+
+	rc = smblib_is_input_present(chg, &input_present);
+	if (!(input_present & INPUT_PRESENT_DC) || rc < 0)
+		goto unvote;
+
+	mutex_lock(&chg->dcin_aicl_lock);
+
+	rc = smblib_get_charge_param(chg, &chg->param.dc_icl, &icl);
+	if (rc < 0)
+		goto unlock;
+
+	if (icl < icl_save) {
+		smblib_dbg(chg, PR_WLS, "done: icl: %d mA\n", (icl / 1000));
+		goto unlock;
+	}
+
+	mutex_unlock(&chg->dcin_aicl_lock);
+
+	goto increment;
+unlock:
+	mutex_unlock(&chg->dcin_aicl_lock);
+unvote:
+	vote(chg->awake_votable, DCIN_AICL_VOTER, false, 0);
+}
+
+static void dcin_aicl_work(struct work_struct *work)
+{
+	struct smb_charger *chg = container_of(work, struct smb_charger,
+						dcin_aicl_work);
+	dcin_aicl(chg);
+}
+
+static enum alarmtimer_restart dcin_aicl_alarm_cb(struct alarm *alarm,
+							ktime_t now)
+{
+	struct smb_charger *chg = container_of(alarm, struct smb_charger,
+					dcin_aicl_alarm);
+
+	smblib_dbg(chg, PR_WLS, "rerunning DCIN AICL\n");
+
+	pm_stay_awake(chg->dev);
+	schedule_work(&chg->dcin_aicl_work);
+
+	return ALARMTIMER_NORESTART;
+}
+
+static void dcin_icl_decrement(struct smb_charger *chg)
+{
+	int rc, icl;
+	ktime_t now = ktime_get();
+
+	rc = smblib_get_charge_param(chg, &chg->param.dc_icl, &icl);
+	if (rc < 0) {
+		smblib_err(chg, "reading DCIN ICL failed: %d\n", rc);
+		return;
+	}
+
+	if (icl == DCIN_ICL_MIN_UA) {
+		/* Cannot possibly decrease ICL any further - do nothing */
+		smblib_dbg(chg, PR_WLS, "hit min ICL: stop\n");
+		return;
+	}
+
+	/* Reduce ICL by 100 mA if 3 UVs happen in a row */
+	if (ktime_us_delta(now, chg->dcin_uv_last_time) > (200 * 1000)) {
+		chg->dcin_uv_count = 0;
+	} else if (chg->dcin_uv_count == 3) {
+		icl -= DCIN_ICL_STEP_UA;
+
+		smblib_dbg(chg, PR_WLS, "icl: %d mA\n", (icl / 1000));
+		rc = smblib_set_charge_param(chg, &chg->param.dc_icl, icl);
+		if (rc < 0) {
+			smblib_err(chg, "setting DCIN ICL failed: %d\n", rc);
+			return;
+		}
+
+		chg->dcin_uv_count = 0;
+	}
+
+	chg->dcin_uv_last_time = now;
+}
+
+irqreturn_t dcin_uv_irq_handler(int irq, void *data)
+{
+	struct smb_irq_data *irq_data = data;
+	struct smb_charger *chg = irq_data->parent_data;
+
+	mutex_lock(&chg->dcin_aicl_lock);
+
+	chg->dcin_uv_count++;
+	smblib_dbg(chg, (PR_WLS | PR_INTERRUPT), "DCIN UV count: %d\n",
+			chg->dcin_uv_count);
+	dcin_icl_decrement(chg);
+
+	mutex_unlock(&chg->dcin_aicl_lock);
 
 	return IRQ_HANDLED;
 }
@@ -6988,7 +7195,6 @@ int smblib_set_prop_pr_swap_in_progress(struct smb_charger *chg,
 			smblib_err(chg, "Couldn't enable DRP rc=%d\n", rc);
 			return rc;
 		}
-#endif
 		chg->power_role = POWER_SUPPLY_TYPEC_PR_DUAL;
 		smblib_dbg(chg, PR_MISC, "restore power role: %d\n",
 				chg->power_role);
@@ -8066,16 +8272,6 @@ int smblib_init(struct smb_charger *chg)
 	INIT_DELAYED_WORK(&chg->pr_lock_clear_work,
 					smblib_pr_lock_clear_work);
 	setup_timer(&chg->apsd_timer, apsd_timer_cb, (unsigned long)chg);
-
-#ifdef VENDOR_EDIT
-/* Yichun.Chen  PSW.BSP.CHG  2019-04-08  for charge */
-	INIT_DELAYED_WORK(&chg->chg_monitor_work, oppo_chg_monitor_work);
-#endif
-
-#ifdef VENDOR_EDIT
-/* Yichun.Chen  PSW.BSP.CHG  2019-04-08  for charge */
-	INIT_DELAYED_WORK(&chg->typec_disable_cmd_work, typec_disable_cmd_work);
-#endif
 
 	if (chg->wa_flags & CHG_TERMINATION_WA) {
 		INIT_WORK(&chg->chg_termination_work,

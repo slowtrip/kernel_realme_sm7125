@@ -52,7 +52,9 @@
 
 #define MSG_NOT_RESP                    0xFFFF
 
-#define MGMT_MSG_TIMEOUT                1000
+#define MGMT_MSG_TIMEOUT                5000
+
+#define SET_FUNC_PORT_MGMT_TIMEOUT	25000
 
 #define SET_FUNC_PORT_MGMT_TIMEOUT	25000
 

@@ -124,11 +124,7 @@ struct dsi_backlight_config {
 	u32 bl_level;
 	u32 bl_scale;
 	u32 bl_scale_ad;
-#ifdef VENDOR_EDIT
-    /*Jinzhu.Han@RM.MM.Display.LCD 2019.11.30 Add for exponential backlight curve*/
-	u32 bl_map_size;
-	u32 *bl_map;
-#endif
+	bool bl_inverted_dbv;
 
 	int en_gpio;
 	/* PWM params */

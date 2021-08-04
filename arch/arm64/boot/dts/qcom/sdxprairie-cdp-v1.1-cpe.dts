@@ -20,5 +20,3 @@
 		"qcom,sdxprairie", "qcom,cdp";
 	qcom,board-id = <0x5010101 0x0>;
 };
-
-

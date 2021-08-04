@@ -1588,6 +1588,30 @@ static struct wmi_pdev_param_map wmi_10_4_pdev_param_map = {
 	.enable_btcoex = WMI_10_4_PDEV_PARAM_ENABLE_BTCOEX,
 };
 
+static const u8 wmi_key_cipher_suites[] = {
+	[WMI_CIPHER_NONE] = WMI_CIPHER_NONE,
+	[WMI_CIPHER_WEP] = WMI_CIPHER_WEP,
+	[WMI_CIPHER_TKIP] = WMI_CIPHER_TKIP,
+	[WMI_CIPHER_AES_OCB] = WMI_CIPHER_AES_OCB,
+	[WMI_CIPHER_AES_CCM] = WMI_CIPHER_AES_CCM,
+	[WMI_CIPHER_WAPI] = WMI_CIPHER_WAPI,
+	[WMI_CIPHER_CKIP] = WMI_CIPHER_CKIP,
+	[WMI_CIPHER_AES_CMAC] = WMI_CIPHER_AES_CMAC,
+	[WMI_CIPHER_AES_GCM] = WMI_CIPHER_AES_GCM,
+};
+
+static const u8 wmi_tlv_key_cipher_suites[] = {
+	[WMI_CIPHER_NONE] = WMI_TLV_CIPHER_NONE,
+	[WMI_CIPHER_WEP] = WMI_TLV_CIPHER_WEP,
+	[WMI_CIPHER_TKIP] = WMI_TLV_CIPHER_TKIP,
+	[WMI_CIPHER_AES_OCB] = WMI_TLV_CIPHER_AES_OCB,
+	[WMI_CIPHER_AES_CCM] = WMI_TLV_CIPHER_AES_CCM,
+	[WMI_CIPHER_WAPI] = WMI_TLV_CIPHER_WAPI,
+	[WMI_CIPHER_CKIP] = WMI_TLV_CIPHER_CKIP,
+	[WMI_CIPHER_AES_CMAC] = WMI_TLV_CIPHER_AES_CMAC,
+	[WMI_CIPHER_AES_GCM] = WMI_TLV_CIPHER_AES_GCM,
+};
+
 static const struct wmi_peer_flags_map wmi_peer_flags_map = {
 	.auth = WMI_PEER_AUTH,
 	.qos = WMI_PEER_QOS,
@@ -2419,7 +2443,8 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
 		   status->freq, status->band, status->signal,
 		   status->rate_idx);
 
-	ieee80211_rx(ar->hw, skb);
+	ieee80211_rx_ni(ar->hw, skb);
+
 	return 0;
 }
 
@@ -3137,18 +3162,31 @@ void ath10k_wmi_event_vdev_start_resp(struct ath10k *ar, struct sk_buff *skb)
 {
 	struct wmi_vdev_start_ev_arg arg = {};
 	int ret;
+	u32 status;
 
 	ath10k_dbg(ar, ATH10K_DBG_WMI, "WMI_VDEV_START_RESP_EVENTID\n");
+
+	ar->last_wmi_vdev_start_status = 0;
 
 	ret = ath10k_wmi_pull_vdev_start(ar, skb, &arg);
 	if (ret) {
 		ath10k_warn(ar, "failed to parse vdev start event: %d\n", ret);
-		return;
+		ar->last_wmi_vdev_start_status = ret;
+		goto out;
 	}
 
-	if (WARN_ON(__le32_to_cpu(arg.status)))
-		return;
+	status = __le32_to_cpu(arg.status);
+	if (WARN_ON_ONCE(status)) {
+		ath10k_warn(ar, "vdev-start-response reports status error: %d (%s)\n",
+			    status, (status == WMI_VDEV_START_CHAN_INVALID) ?
+			    "chan-invalid" : "unknown");
+		/* Setup is done one way or another though, so we should still
+		 * do the completion, so don't return here.
+		 */
+		ar->last_wmi_vdev_start_status = -EINVAL;
+	}
 
+out:
 	complete(&ar->vdev_setup_done);
 }
 
@@ -8407,6 +8445,7 @@ int ath10k_wmi_attach(struct ath10k *ar)
 		ar->wmi.vdev_param = &wmi_10_4_vdev_param_map;
 		ar->wmi.pdev_param = &wmi_10_4_pdev_param_map;
 		ar->wmi.peer_flags = &wmi_10_2_peer_flags_map;
+		ar->wmi_key_cipher = wmi_key_cipher_suites;
 		break;
 	case ATH10K_FW_WMI_OP_VERSION_10_2_4:
 		ar->wmi.cmd = &wmi_10_2_4_cmd_map;
@@ -8414,6 +8453,7 @@ int ath10k_wmi_attach(struct ath10k *ar)
 		ar->wmi.vdev_param = &wmi_10_2_4_vdev_param_map;
 		ar->wmi.pdev_param = &wmi_10_2_4_pdev_param_map;
 		ar->wmi.peer_flags = &wmi_10_2_peer_flags_map;
+		ar->wmi_key_cipher = wmi_key_cipher_suites;
 		break;
 	case ATH10K_FW_WMI_OP_VERSION_10_2:
 		ar->wmi.cmd = &wmi_10_2_cmd_map;
@@ -8421,6 +8461,7 @@ int ath10k_wmi_attach(struct ath10k *ar)
 		ar->wmi.vdev_param = &wmi_10x_vdev_param_map;
 		ar->wmi.pdev_param = &wmi_10x_pdev_param_map;
 		ar->wmi.peer_flags = &wmi_10_2_peer_flags_map;
+		ar->wmi_key_cipher = wmi_key_cipher_suites;
 		break;
 	case ATH10K_FW_WMI_OP_VERSION_10_1:
 		ar->wmi.cmd = &wmi_10x_cmd_map;
@@ -8428,6 +8469,7 @@ int ath10k_wmi_attach(struct ath10k *ar)
 		ar->wmi.vdev_param = &wmi_10x_vdev_param_map;
 		ar->wmi.pdev_param = &wmi_10x_pdev_param_map;
 		ar->wmi.peer_flags = &wmi_10x_peer_flags_map;
+		ar->wmi_key_cipher = wmi_key_cipher_suites;
 		break;
 	case ATH10K_FW_WMI_OP_VERSION_MAIN:
 		ar->wmi.cmd = &wmi_cmd_map;
@@ -8435,9 +8477,11 @@ int ath10k_wmi_attach(struct ath10k *ar)
 		ar->wmi.vdev_param = &wmi_vdev_param_map;
 		ar->wmi.pdev_param = &wmi_pdev_param_map;
 		ar->wmi.peer_flags = &wmi_peer_flags_map;
+		ar->wmi_key_cipher = wmi_key_cipher_suites;
 		break;
 	case ATH10K_FW_WMI_OP_VERSION_TLV:
 		ath10k_wmi_tlv_attach(ar);
+		ar->wmi_key_cipher = wmi_tlv_key_cipher_suites;
 		break;
 	case ATH10K_FW_WMI_OP_VERSION_UNSET:
 	case ATH10K_FW_WMI_OP_VERSION_MAX:

@@ -438,7 +438,6 @@ void dsi_phy_hw_v3_0_enable(struct dsi_phy_hw *phy,
 	else /* Default PHY type is DPHY */
 		dsi_phy_hw_dphy_enable(phy, cfg);
 
-	pr_debug("[DSI_%d]D-Phy enabled", phy->index);
 }
 
 /**

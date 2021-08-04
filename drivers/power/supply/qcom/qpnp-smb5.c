@@ -590,7 +590,8 @@ static int smb5_chg_config_init(struct smb5 *chip)
 	case PMI632_SUBTYPE:
 		chip->chg.chg_param.smb_version = PMI632_SUBTYPE;
 		chg->wa_flags |= WEAK_ADAPTER_WA | USBIN_OV_WA
-				| CHG_TERMINATION_WA;
+				| CHG_TERMINATION_WA | USBIN_ADC_WA
+				| SKIP_MISC_PBS_IRQ_WA;
 		chg->param = smb5_pmi632_params;
 		chg->use_extcon = true;
 		chg->name = "pmi632_charger";
@@ -708,7 +709,8 @@ static int smb5_parse_dt(struct smb5 *chip)
 	chg->pd_not_supported = chg->pd_not_supported ||
 			of_property_read_bool(node, "qcom,usb-pd-disable");
 
-	chg->lpd_disabled = of_property_read_bool(node, "qcom,lpd-disable");
+	chg->lpd_disabled = chg->lpd_disabled ||
+			of_property_read_bool(node, "qcom,lpd-disable");
 
 	rc = of_property_read_u32(node, "qcom,wd-bark-time-secs",
 					&chip->dt.wd_bark_time);
@@ -744,11 +746,6 @@ static int smb5_parse_dt(struct smb5 *chip)
 		chg->otg_cl_ua =
 			(chip->chg.chg_param.smb_version == PMI632_SUBTYPE)
 						? MICRO_1PA : MICRO_3PA;
-
-#ifdef VENDOR_EDIT
-/* Yichun.Chen  PSW.BSP.CHG  2019-05-30  for limit otg current */
-	chg->otg_cl_ua = MICRO_1PA;
-#endif
 
 	rc = of_property_read_u32(node, "qcom,chg-term-src",
 			&chip->dt.term_current_src);
@@ -841,6 +838,9 @@ static int smb5_parse_dt(struct smb5 *chip)
 	chg->suspend_input_on_debug_batt = of_property_read_bool(node,
 					"qcom,suspend-input-on-debug-batt");
 
+	chg->fake_chg_status_on_debug_batt = of_property_read_bool(node,
+					"qcom,fake-chg-status-on-debug-batt");
+
 	rc = of_property_read_u32(node, "qcom,otg-deglitch-time-ms",
 					&chg->otg_delay_ms);
 	if (rc < 0)
@@ -923,6 +923,50 @@ static int smb5_parse_dt(struct smb5 *chip)
 
 	chip->dt.disable_suspend_on_collapse = of_property_read_bool(node,
 					"qcom,disable-suspend-on-collapse");
+
+	of_property_read_u32(node, "qcom,fcc-step-delay-ms",
+					&chg->chg_param.fcc_step_delay_ms);
+	if (chg->chg_param.fcc_step_delay_ms <= 0)
+		chg->chg_param.fcc_step_delay_ms =
+					DEFAULT_FCC_STEP_UPDATE_DELAY_MS;
+
+	of_property_read_u32(node, "qcom,fcc-step-size-ua",
+					&chg->chg_param.fcc_step_size_ua);
+	if (chg->chg_param.fcc_step_size_ua <= 0)
+		chg->chg_param.fcc_step_size_ua = DEFAULT_FCC_STEP_SIZE_UA;
+
+	/*
+	 * If property is present parallel charging with CP is disabled
+	 * with HVDCP3 adapter.
+	 */
+	chg->hvdcp3_standalone_config = of_property_read_bool(node,
+					"qcom,hvdcp3-standalone-config");
+	of_property_read_u32(node, "qcom,hvdcp3-max-icl-ua",
+					&chg->chg_param.hvdcp3_max_icl_ua);
+	if (chg->chg_param.hvdcp3_max_icl_ua <= 0)
+		chg->chg_param.hvdcp3_max_icl_ua = MICRO_3PA;
+
+	/* Used only in Adapter CV mode of operation */
+	of_property_read_u32(node, "qcom,qc4-max-icl-ua",
+				&chg->chg_param.qc4_max_icl_ua);
+	if (chg->chg_param.qc4_max_icl_ua <= 0)
+		chg->chg_param.qc4_max_icl_ua = MICRO_4PA;
+
+	chg->wls_icl_ua = DCIN_ICL_MAX_UA;
+	rc = of_property_read_u32(node, "qcom,wls-current-max-ua",
+			&tmp);
+	if (!rc && tmp < DCIN_ICL_MAX_UA)
+		chg->wls_icl_ua = tmp;
+
+	return 0;
+}
+
+static int smb5_set_prop_comp_clamp_level(struct smb_charger *chg,
+			     const union power_supply_propval *val)
+{
+	int rc = 0, i;
+	struct clamp_config clamp_config;
+	enum comp_clamp_levels level;
 
 	of_property_read_u32(node, "qcom,fcc-step-delay-ms",
 					&chg->chg_param.fcc_step_delay_ms);
@@ -1394,7 +1438,11 @@ static int smb5_usb_set_prop(struct power_supply *psy,
 		chg->apsd_ext_timeout = false;
 		smblib_rerun_apsd(chg);
 		break;
-
+	case POWER_SUPPLY_PROP_APSD_RERUN:
+		del_timer_sync(&chg->apsd_timer);
+		chg->apsd_ext_timeout = false;
+		smblib_rerun_apsd(chg);
+		break;
 	default:
 		pr_err("set prop %d is not supported\n", psp);
 		rc = -EINVAL;
@@ -2048,70 +2096,9 @@ static enum power_supply_property smb5_batt_props[] = {
 	POWER_SUPPLY_PROP_RECHARGE_SOC,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_FORCE_RECHARGE,
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
+	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
 	POWER_SUPPLY_PROP_FCC_STEPPER_ENABLE,
-#ifdef VENDOR_EDIT
-/* Yichun.Chen  PSW.BSP.CHG  2019-04-08  for charge */
-	POWER_SUPPLY_PROP_STATUS,
-	POWER_SUPPLY_PROP_HEALTH,
-	POWER_SUPPLY_PROP_PRESENT,
-	POWER_SUPPLY_PROP_TECHNOLOGY,
-	POWER_SUPPLY_PROP_CAPACITY,
-	POWER_SUPPLY_PROP_TEMP,
-	POWER_SUPPLY_PROP_VOLTAGE_NOW,
-	POWER_SUPPLY_PROP_VOLTAGE_MIN,
-	POWER_SUPPLY_PROP_CURRENT_NOW,
-	POWER_SUPPLY_PROP_CHARGE_NOW,
-	POWER_SUPPLY_PROP_AUTHENTICATE,
-	POWER_SUPPLY_PROP_CHARGE_TIMEOUT,
-	POWER_SUPPLY_PROP_CHARGE_TECHNOLOGY,
-	POWER_SUPPLY_PROP_FAST_CHARGE,
-	POWER_SUPPLY_PROP_MMI_CHARGING_ENABLE,
-	POWER_SUPPLY_PROP_BATTERY_FCC,
-	POWER_SUPPLY_PROP_BATTERY_SOH,
-	POWER_SUPPLY_PROP_BATTERY_CC,
-	POWER_SUPPLY_PROP_BATTERY_RM,
-	POWER_SUPPLY_PROP_BATTERY_NOTIFY_CODE,
-	POWER_SUPPLY_PROP_ADAPTER_FW_UPDATE,
-	POWER_SUPPLY_PROP_VOOCCHG_ING,
-	POWER_SUPPLY_PROP_CHARGE_COUNTER,
-	POWER_SUPPLY_PROP_CURRENT_MAX,
-
-#ifdef CONFIG_OPPO_CHIP_SOC_NODE
-	POWER_SUPPLY_PROP_CHIP_SOC,
-#endif
-
-#ifdef CONFIG_OPPO_CHECK_CHARGERID_VOLT
-	POWER_SUPPLY_PROP_CHARGERID_VOLT,
-#endif
-
-#ifdef CONFIG_OPPO_SHIP_MODE_SUPPORT
-	POWER_SUPPLY_PROP_SHIP_MODE,
-#endif
-
-#ifdef CONFIG_OPPO_SHORT_C_BATT_CHECK
-#ifdef CONFIG_OPPO_SHORT_USERSPACE
-	POWER_SUPPLY_PROP_SHORT_C_LIMIT_CHG,
-	POWER_SUPPLY_PROP_SHORT_C_LIMIT_RECHG,
-	POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT,
-	POWER_SUPPLY_PROP_INPUT_CURRENT_SETTLED,
-#else
-	POWER_SUPPLY_PROP_SHORT_C_BATT_UPDATE_CHANGE,
-	POWER_SUPPLY_PROP_SHORT_C_BATT_IN_IDLE,
-	POWER_SUPPLY_PROP_SHORT_C_BATT_CV_STATUS,
-#endif
-#endif
-
-#ifdef CONFIG_OPPO_SHORT_HW_CHECK
-	POWER_SUPPLY_PROP_SHORT_C_HW_FEATURE,
-	POWER_SUPPLY_PROP_SHORT_C_HW_STATUS,
-#endif
-
-#ifdef CONFIG_OPPO_SHORT_IC_CHECK
-	POWER_SUPPLY_PROP_SHORT_C_IC_OTP_STATUS,
-	POWER_SUPPLY_PROP_SHORT_C_IC_VOLT_THRESH,
-	POWER_SUPPLY_PROP_SHORT_C_IC_OTP_VALUE,
-#endif
-#endif
 };
 
 #define DEBUG_ACCESSORY_TEMP_DECIDEGC	250
@@ -2275,6 +2262,14 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 #endif
 	case POWER_SUPPLY_PROP_FORCE_RECHARGE:
 		val->intval = 0;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		rc = smblib_get_prop_from_bms(chg,
+				POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN, val);
+		break;
+	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
+		rc = smblib_get_prop_from_bms(chg,
+				POWER_SUPPLY_PROP_TIME_TO_FULL_NOW, val);
 		break;
 	case POWER_SUPPLY_PROP_FCC_STEPPER_ENABLE:
 		val->intval = chg->fcc_stepper_enable;
@@ -5125,6 +5120,7 @@ static int smb5_probe(struct platform_device *pdev)
 	chg->connector_health = -EINVAL;
 	chg->otg_present = false;
 	chg->main_fcc_max = -EINVAL;
+	mutex_init(&chg->adc_lock);
 
 	chg->regmap = dev_get_regmap(chg->dev->parent, NULL);
 	if (!chg->regmap) {

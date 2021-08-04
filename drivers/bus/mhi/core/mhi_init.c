@@ -22,6 +22,7 @@
 #include <linux/slab.h>
 #include <linux/wait.h>
 #include <linux/mhi.h>
+#include <linux/memblock.h>
 #include "mhi_internal.h"
 
 const char * const mhi_log_level_str[MHI_MSG_LVL_MAX] = {
@@ -49,6 +50,7 @@ const char * const mhi_state_tran_str[MHI_ST_TRANSITION_MAX] = {
 	[MHI_ST_TRANSITION_READY] = "READY",
 	[MHI_ST_TRANSITION_SBL] = "SBL",
 	[MHI_ST_TRANSITION_MISSION_MODE] = "MISSION MODE",
+	[MHI_ST_TRANSITION_DISABLE] = "DISABLE",
 };
 
 const char * const mhi_state_str[MHI_STATE_MAX] = {
@@ -77,6 +79,7 @@ static const char * const mhi_pm_state_str[] = {
 	[MHI_PM_BIT_SYS_ERR_PROCESS] = "SYS_ERR Process",
 	[MHI_PM_BIT_SHUTDOWN_PROCESS] = "SHUTDOWN Process",
 	[MHI_PM_BIT_LD_ERR_FATAL_DETECT] = "LD or Error Fatal Detect",
+	[MHI_PM_BIT_SHUTDOWN_NO_ACCESS] = "SHUTDOWN No Access",
 };
 
 struct mhi_bus mhi_bus;
@@ -1512,6 +1515,11 @@ int of_register_mhi_controller(struct mhi_controller *mhi_cntrl)
 	if (!mhi_cntrl->status_cb || !mhi_cntrl->link_status)
 		return -EINVAL;
 
+	if (!mhi_cntrl->iova_stop) {
+		mhi_cntrl->iova_start = memblock_start_of_DRAM();
+		mhi_cntrl->iova_stop = memblock_end_of_DRAM();
+	}
+
 	ret = of_parse_dt(mhi_cntrl, mhi_cntrl->of_node);
 	if (ret)
 		return -EINVAL;
@@ -1751,9 +1759,6 @@ int mhi_prepare_for_power_up(struct mhi_controller *mhi_cntrl)
 
 			mhi_cntrl->bhie = mhi_cntrl->regs + bhie_off;
 		}
-
-		memset_io(mhi_cntrl->bhie + BHIE_RXVECADDR_LOW_OFFS, 0,
-			  BHIE_RXVECSTATUS_OFFS - BHIE_RXVECADDR_LOW_OFFS + 4);
 
 		if (mhi_cntrl->rddm_image)
 			mhi_rddm_prepare(mhi_cntrl, mhi_cntrl->rddm_image);

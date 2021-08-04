@@ -33,6 +33,7 @@
 #include <linux/msm-bus-board.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <soc/qcom/boot_stats.h>
 
 #include "ep_pcie_com.h"
 #include <asm/dma-iommu.h>
@@ -1893,6 +1894,9 @@ int ep_pcie_core_enable_endpoint(enum ep_pcie_options opt)
 		EP_PCIE_INFO(dev,
 			"PCIe V%d: link initialized for LE PCIe endpoint\n",
 			dev->rev);
+		pr_crit("PCIe - link initialized for LE PCIe endpoint\n");
+		update_marker(
+			"PCIe - link initialized for LE PCIe endpoint\n");
 	}
 
 checkbme:
@@ -2601,8 +2605,9 @@ perst_irq:
 	perst_irq = gpio_to_irq(dev->gpio[EP_PCIE_GPIO_PERST].num);
 	ret = devm_request_irq(pdev, perst_irq,
 		ep_pcie_handle_perst_irq,
-		(atomic_read(&dev->perst_deast) ?
-			IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH),
+		((atomic_read(&dev->perst_deast) ?
+			IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH)
+			| IRQF_EARLY_RESUME),
 		"ep_pcie_perst", dev);
 	if (ret) {
 		EP_PCIE_ERR(dev,
@@ -2858,7 +2863,7 @@ int ep_pcie_core_get_msi_config(struct ep_pcie_msi_config *cfg)
 					msi->start, 0, msi->end,
 					lower, upper);
 
-		if (ep_pcie_dev.active_config) {
+		if (ep_pcie_dev.active_config || ep_pcie_dev.pcie_edma) {
 			cfg->lower = lower;
 			cfg->upper = upper;
 		} else {

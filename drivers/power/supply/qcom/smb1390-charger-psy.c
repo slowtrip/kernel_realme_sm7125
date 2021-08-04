@@ -1060,6 +1060,9 @@ static int smb1390_get_prop_suspended(struct smb1390 *chip,
 	case POWER_SUPPLY_PROP_CP_ISNS:
 		val->intval = chip->cp_isns_master;
 		break;
+	case POWER_SUPPLY_PROP_CP_ISNS_SLAVE:
+		val->intval = chip->cp_isns_slave;
+		break;
 	case POWER_SUPPLY_PROP_CP_IRQ_STATUS:
 		val->intval = chip->irq_status;
 		break;
@@ -1137,7 +1140,14 @@ static int smb1390_get_prop(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_CP_ISNS:
-		rc = smb1390_get_isns(chip, val);
+		rc = smb1390_get_isns_master(chip, val);
+		if (!rc)
+			chip->cp_isns_master = val->intval;
+		break;
+	case POWER_SUPPLY_PROP_CP_ISNS_SLAVE:
+		rc = smb1390_get_isns_slave(chip, val);
+		if (!rc)
+			chip->cp_isns_slave = val->intval;
 		break;
 	case POWER_SUPPLY_PROP_CP_TOGGLE_SWITCHER:
 		val->intval = 0;
@@ -1153,10 +1163,9 @@ static int smb1390_get_prop(struct power_supply *psy,
 			val->intval |= status;
 		break;
 	case POWER_SUPPLY_PROP_CP_ILIM:
-		rc = smb1390_read(chip, CORE_FTRIM_ILIM_REG, &status);
+		rc = smb1390_get_cp_ilim(chip, val);
 		if (!rc)
-			val->intval = ((status & CFG_ILIM_MASK) * 100000)
-					+ 500000;
+			chip->cp_ilim = val->intval;
 		break;
 	case POWER_SUPPLY_PROP_CHIP_VERSION:
 		val->intval = chip->pmic_rev_id->rev4;
@@ -1574,7 +1583,7 @@ static int smb1390_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	chip->cp_ws = wakeup_source_register("qcom-chargepump");
+	chip->cp_ws = wakeup_source_register(NULL, "qcom-chargepump");
 	if (!chip->cp_ws)
 		return -ENOMEM;
 

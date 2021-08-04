@@ -1319,5 +1319,12 @@ config TOUCHPANEL_OPPO
 source "drivers/input/touchscreen/lq/oppo_touchscreen/Kconfig"
 
 # #endif /*ODM_LQ_EDIT*/
+config TOUCHSCREEN_RAYDIUM_CHIPSET
+	bool "Raydium WT030 touchpanel CHIPSET"
+	depends on I2C
+	help
+	  Say Y here if you have a Raydium WT030 CHIPSET touchscreen.
+
+	  If unsure, say N.
 
 endif

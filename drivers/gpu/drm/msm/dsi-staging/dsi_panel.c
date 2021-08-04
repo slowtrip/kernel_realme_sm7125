@@ -696,43 +696,9 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 
 	dsi = &panel->mipi_device;
 
-#ifdef VENDOR_EDIT
-/* Gou shengjun@PSW.MM.Display.LCD.Feature,2018-11-21
- * Add for OnScreenFingerprint feature
-*/
-	/*liping-m@PSW.MM.Display.LCD.Feature,2018/9/26 temp add for OnScreenFingerprint feature*/
-	if (panel->is_hbm_enabled){
-		pr_err("panel hbm is enabled\n");
-		return 0;
-	} else if((hbm_mode == 0)&&(hbm_recvoery == 1)){
-		dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_OFF);
-	}
+	if (panel->bl_config.bl_inverted_dbv)
+		bl_lvl = (((bl_lvl & 0xff) << 8) | (bl_lvl >> 8));
 
-	if (bl_lvl > 1) {
-		if (bl_lvl > oppo_last_backlight)
-			oppo_backlight_delta = bl_lvl - oppo_last_backlight;
-		else
-			oppo_backlight_delta = oppo_last_backlight - bl_lvl;
-		oppo_last_backlight = bl_lvl;
-		oppo_backlight_time = ktime_get();
-	}
-	if (oppo_dimlayer_bl_enabled != oppo_dimlayer_bl_enable_real) {
-		oppo_dimlayer_bl_enable_real = oppo_dimlayer_bl_enabled;
-		if (oppo_dimlayer_bl_enable_real) {
-			pr_err("Enter DC backlight\n");
-		} else {
-			pr_err("Exit DC backlight\n");
-		}
-	}
-	if (oppo_dimlayer_bl_enable_real) {
-		/*
-		 * avoid effect power and aod mode
-		 */
-		if (bl_lvl > 1)
-			bl_lvl = oppo_dimlayer_bl_alpha;
-	}
-
-#endif /* VENDOR_EDIT */
 	rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
 	if (rc < 0)
 		pr_err("failed to update dcs backlight:%d\n", bl_lvl);
@@ -765,8 +731,8 @@ static int dsi_panel_update_pwm_backlight(struct dsi_panel *panel,
 
 	rc = pwm_config(bl->pwm_bl, duty, period_ns);
 	if (rc) {
-		pr_err("[%s] failed to change pwm config, rc=\n", panel->name,
-			rc);
+		pr_err("[%s] failed to change pwm config, rc=%i\n",
+		       panel->name, rc);
 		goto error;
 	}
 
@@ -779,8 +745,8 @@ static int dsi_panel_update_pwm_backlight(struct dsi_panel *panel,
 	if (!bl->pwm_enabled) {
 		rc = pwm_enable(bl->pwm_bl);
 		if (rc) {
-			pr_err("[%s] failed to enable pwm, rc=\n", panel->name,
-				rc);
+			pr_err("[%s] failed to enable pwm, rc=%i\n",
+			       panel->name, rc);
 			goto error;
 		}
 
@@ -1326,6 +1292,9 @@ static int dsi_panel_parse_misc_host_config(struct dsi_host_common_cfg *host,
 		host->t_clk_pre = val;
 		pr_debug("[%s] t_clk_pre = %d\n", name, val);
 	}
+
+	host->t_clk_pre_extend = utils->read_bool(utils->data,
+						"qcom,mdss-dsi-t-clk-pre-extend");
 
 	host->ignore_rx_eot = utils->read_bool(utils->data,
 						"qcom,mdss-dsi-rx-eot-ignore");
@@ -2505,30 +2474,8 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 		panel->bl_config.brightness_default_level = val;
 	}
 
-#ifdef VENDOR_EDIT
-/*Jinzhu.Han@RM.MM.Display.LCD 2019.11.30 Add for exponential backlight curve*/
-    rc = utils->read_u32(utils->data, "qcom,bl-map-size", &val);
-    if (rc) {
-        panel->bl_config.bl_map_size = 0;
-    } else {
-        panel->bl_config.bl_map_size = val;
-    }
-    pr_err("[%s] backlight map size: %d\n", panel->name, panel->bl_config.bl_map_size);
-
-    if (panel->bl_config.bl_map_size) {
-        panel->bl_config.bl_map = kzalloc(sizeof(u32) * panel->bl_config.bl_map_size, GFP_KERNEL);
-        if (!panel->bl_config.bl_map) {
-            pr_err("[%s] allocate backlight map memory failed\n", panel->name);
-        } else {
-            rc = utils->read_u32_array(utils->data,"qcom,bl-map",
-                    panel->bl_config.bl_map, panel->bl_config.bl_map_size);
-            if (rc) {
-                pr_err("[%s] read backlight map failed\n", panel->name);
-                kfree(panel->bl_config.bl_map);
-            }
-        }
-    }
-#endif
+	panel->bl_config.bl_inverted_dbv = utils->read_bool(utils->data,
+		"qcom,mdss-dsi-bl-inverted-dbv");
 
 	if (panel->bl_config.type == DSI_BACKLIGHT_PWM) {
 		rc = dsi_panel_parse_bl_pwm_config(panel);
@@ -2755,6 +2702,9 @@ static int dsi_panel_parse_phy_timing(struct dsi_display_mode *mode,
 	u32 len, i;
 	int rc = 0;
 	struct dsi_display_mode_priv_info *priv_info;
+	u64 h_period, v_period;
+	u64 refresh_rate = TICKS_IN_MICRO_SECOND;
+	struct dsi_mode_info *timing = NULL;
 	u64 pixel_clk_khz;
 
 	if (!mode || !mode->priv_info)
@@ -2790,6 +2740,10 @@ static int dsi_panel_parse_phy_timing(struct dsi_display_mode *mode,
 		do_div(pixel_clk_khz, 1000);
 		mode->pixel_clk_khz = pixel_clk_khz;
 	}
+
+	pixel_clk_khz = h_period * v_period * refresh_rate;
+	do_div(pixel_clk_khz, 1000);
+	mode->pixel_clk_khz = pixel_clk_khz;
 
 	return rc;
 }
@@ -3534,7 +3488,7 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 
 	rc = dsi_panel_parse_qsync_caps(panel, of_node);
 	if (rc)
-		pr_err("failed to parse qsync features, rc=%d\n", rc);
+		pr_debug("failed to parse qsync features, rc=%d\n", rc);
 
 	/* allow qsync support only if DFPS is with VFP approach */
 	if ((panel->dfps_caps.dfps_support) &&
@@ -3762,10 +3716,9 @@ int dsi_panel_get_mode_count(struct dsi_panel *panel)
 
 	panel->num_timing_nodes = count;
 	dsi_for_each_child_node(timings_np, child_np) {
-		utils_data = child_np;
-		if (utils->read_bool(utils->data, "qcom,mdss-dsi-video-mode"))
+		if (utils->read_bool(child_np, "qcom,mdss-dsi-video-mode"))
 			num_video_modes++;
-		else if (utils->read_bool(utils->data,
+		else if (utils->read_bool(child_np,
 					"qcom,mdss-dsi-cmd-mode"))
 			num_cmd_modes++;
 		else if (panel->panel_mode == DSI_OP_VIDEO_MODE)
@@ -3780,9 +3733,21 @@ int dsi_panel_get_mode_count(struct dsi_panel *panel)
 	num_bit_clks = !panel->dyn_clk_caps.dyn_clk_support ? 1 :
 					panel->dyn_clk_caps.bit_clk_list_len;
 
-	/* Inflate num_of_modes by fps and bit clks in dfps */
-	panel->num_display_modes = (num_cmd_modes * num_bit_clks) +
-			(num_video_modes * num_bit_clks * num_dfps_rates);
+	/*
+	 * Inflate num_of_modes by fps and bit clks in dfps
+	 * Single command mode for video mode panels supporting
+	 * panel operating mode switch.
+	 */
+
+	num_video_modes = num_video_modes * num_bit_clks * num_dfps_rates;
+
+	if ((panel->panel_mode == DSI_OP_VIDEO_MODE) &&
+			(panel->panel_mode_switch_enabled))
+		num_cmd_modes  = 1;
+	else
+		num_cmd_modes = num_cmd_modes * num_bit_clks;
+
+	panel->num_display_modes = num_video_modes + num_cmd_modes;
 
 error:
 	return rc;
@@ -3952,9 +3917,6 @@ int dsi_panel_get_mode(struct dsi_panel *panel,
 			goto parse_fail;
 		}
 
-		if (panel->panel_mode == DSI_OP_VIDEO_MODE)
-			mode->priv_info->mdp_transfer_time_us = 0;
-
 		rc = dsi_panel_parse_dsc_params(mode, utils);
 		if (rc) {
 			pr_err("failed to parse dsc params, rc=%d\n", rc);
@@ -4007,6 +3969,9 @@ int dsi_panel_get_mode(struct dsi_panel *panel,
 		} else {
 			mode->panel_mode = panel->panel_mode;
 		}
+
+		if (mode->panel_mode == DSI_OP_VIDEO_MODE)
+			mode->priv_info->mdp_transfer_time_us = 0;
 	}
 	goto done;
 

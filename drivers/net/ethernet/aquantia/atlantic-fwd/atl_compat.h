@@ -17,6 +17,12 @@
 
 #include <linux/pci.h>
 #include <linux/msi.h>
+#include <linux/skbuff.h>
+#include <linux/netdevice.h>
+
+#ifndef IS_REACHABLE
+#define IS_REACHABLE defined
+#endif
 
 /* If the kernel is not RHEL / CentOS, then the 2 identifiers below will be
  * undefined. Define them this way to simplify the checks below.
@@ -107,7 +113,7 @@ static inline int skb_xmit_more(struct sk_buff *skb)
 {
 	return 0;
 }
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5,2,0)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0) || RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 2)
 static inline int skb_xmit_more(struct sk_buff *skb)
 {
 	return netdev_xmit_more();
@@ -313,6 +319,135 @@ static inline __u64 ethtool_get_flow_spec_ring_vf(__u64 ring_cookie)
 {
        return (ETHTOOL_RX_FLOW_SPEC_RING_VF & ring_cookie) >>
                                ETHTOOL_RX_FLOW_SPEC_RING_VF_OFF;
+<<<<<<< HEAD
+};
+#endif /* 4.2.0 */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
+
+/* renamed in commit df8a39defad46b83694ea6dd868d332976d62cc0 */
+#define skb_vlan_tag_present(__skb) vlan_tx_tag_present(__skb)
+#define skb_vlan_tag_get(__skb) vlan_tx_tag_get(__skb)
+#endif	/* 4.0.0 */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
+
+/* introduced in commit 1077fa36f23e259858caf6f269a47393a5aff523
+ * use plain rmb() for now*/
+#define dma_rmb()	rmb()
+
+/* from commit 9c0c112422a2a6b06fcddcaf21957676490cebba */
+static inline int eth_skb_pad(struct sk_buff *skb)
+{
+	unsigned int len = ETH_ZLEN;
+	unsigned int size = skb->len;
+
+	if (unlikely(size < len)) {
+		len -= size;
+		if (skb_pad(skb, len))
+			return -ENOMEM;
+		__skb_put(skb, len);
+	}
+	return 0;
+}
+
+/* introduced in commit 71dfda58aaaf4bf6b1bc59f9d8afa635fa1337d4 */
+#define __dev_alloc_pages(__flags, __order) __skb_alloc_pages(__flags | __GFP_COMP, NULL, __order)
+
+/* introduced in commit fd11a83dd3630ec6a60f8a702446532c5c7e1991 */
+#define napi_alloc_skb(__napi, __len) netdev_alloc_skb_ip_align((__napi)->dev, __len)
+
+/* introduced in commit 3b47d30396bae4f0bd1ff0dbcd7c4f5077e7df4e */
+#define napi_complete_done(__napi, __work_done) napi_complete(__napi)
+
+/* introduced in commit bc9ad166e38ae1cdcb5323a8aa45dff834d68bfa */
+#define napi_schedule_irqoff(__napi) napi_schedule(__napi)
+
+/* READ_ONCE() / WRITE_ONCE
+ * from commit 230fa253df6352af12ad0a16128760b5cb3f92df with changes
+ * from 43239cbe79fc369f5d2160bd7f69e28b5c50a58c and
+ * 7bd3e239d6c6d1cad276e8f130b386df4234dcd7 */
+
+/* READ_ONCE / WRTIE_ONCE were also cherry-picked into 3.12.58 as
+ * b5be8baf9e0d5ea035588a0430b2af4989e07572  and
+ * dda458f0183649e8613a62bb59bec4e5acb883aa */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,12,58) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0)
+
+static __always_inline void __read_once_size(volatile void *p, void *res, int size)
+{
+	switch (size) {
+	case 1: *(__u8 *)res = *(volatile __u8 *)p; break;
+	case 2: *(__u16 *)res = *(volatile __u16 *)p; break;
+	case 4: *(__u32 *)res = *(volatile __u32 *)p; break;
+	case 8: *(__u64 *)res = *(volatile __u64 *)p; break;
+	default:
+		barrier();
+		__builtin_memcpy((void *)res, (const void *)p, size);
+		barrier();
+	}
+}
+
+static __always_inline void __write_once_size(volatile void *p, void *res, int size)
+{
+	switch (size) {
+	case 1: *(volatile __u8 *)p = *(__u8 *)res; break;
+	case 2: *(volatile __u16 *)p = *(__u16 *)res; break;
+	case 4: *(volatile __u32 *)p = *(__u32 *)res; break;
+	case 8: *(volatile __u64 *)p = *(__u64 *)res; break;
+	default:
+		barrier();
+		__builtin_memcpy((void *)p, (const void *)res, size);
+		barrier();
+	}
+}
+
+#define READ_ONCE(x)							\
+	({ typeof(x) __val; __read_once_size(&x, &__val, sizeof(__val)); __val; })
+
+#define WRITE_ONCE(x, val) \
+	({ typeof(x) __val; __val = val; __write_once_size(&x, &__val, sizeof(__val)); __val; })
+
+#endif	/* 3.12.58 */
+
+#endif	/* 3.19.0 */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,18,0)
+
+/* introduced in commit 56193d1bce2b2759cb4bdcc00cd05544894a0c90
+ * pull the whole head buffer len for now*/
+#define eth_get_headlen(__data, __max_len) (__max_len)
+
+#endif	/* 3.18.0 */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,14,0)
+
+/* from commit 286ab723d4b83d37deb4017008ef1444a95cfb0d */
+static inline void ether_addr_copy(u8 *dst, const u8 *src)
+{
+#if defined(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS)
+	*(u32 *)dst = *(const u32 *)src;
+	*(u16 *)(dst + 4) = *(const u16 *)(src + 4);
+#else
+	u16 *a = (u16 *)dst;
+	const u16 *b = (const u16 *)src;
+
+	a[0] = b[0];
+	a[1] = b[1];
+	a[2] = b[2];
+#endif
+}
+
+/* introduced in commit e6247027e5173c00efb2084d688d06ff835bc3b0 */
+#define dev_consume_skb_any(__skb) dev_kfree_skb_any(__skb)
+
+/* from commit 09323cc479316e046931a2c679932204b36fea6c */
+enum pkt_hash_types {
+	PKT_HASH_TYPE_NONE,	/* Undefined type */
+	PKT_HASH_TYPE_L2,	/* Input: src_MAC, dest_MAC */
+	PKT_HASH_TYPE_L3,	/* Input: src_IP, dst_IP */
+	PKT_HASH_TYPE_L4,	/* Input: src_IP, dst_IP, src_port, dst_port */
+};
+=======
 };
 #endif /* 4.2.0 */
 

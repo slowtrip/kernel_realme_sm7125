@@ -123,6 +123,8 @@ enum print_reason {
 #define DCIN_ICL_MAX_UA			1500000
 #define DCIN_ICL_STEP_UA		100000
 
+#define ROLE_REVERSAL_DELAY_MS		2000
+
 enum smb_mode {
 	PARALLEL_MASTER = 0,
 	PARALLEL_SLAVE,
@@ -148,6 +150,9 @@ enum {
 	CHG_TERMINATION_WA		= BIT(2),
 	WEAK_ADAPTER_WA			= BIT(2),
 	USBIN_OV_WA			= BIT(3),
+	CHG_TERMINATION_WA		= BIT(4),
+	USBIN_ADC_WA			= BIT(5),
+	SKIP_MISC_PBS_IRQ_WA		= BIT(6),
 };
 
 enum jeita_cfg_stat {
@@ -422,6 +427,7 @@ struct smb_charger {
 	struct mutex		smb_lock;
 	struct mutex		ps_change_lock;
 	struct mutex		irq_status_lock;
+	struct mutex		adc_lock;
 	spinlock_t		typec_pr_lock;
 	struct mutex		dcin_aicl_lock;
 	struct mutex		dpdm_lock;
@@ -530,6 +536,7 @@ struct smb_charger {
 	int			connector_type;
 	bool			otg_en;
 	bool			suspend_input_on_debug_batt;
+	bool			fake_chg_status_on_debug_batt;
 	int			default_icl_ua;
 	int			otg_cl_ua;
 	bool			uusb_apsd_rerun_done;
@@ -624,62 +631,6 @@ struct smb_charger {
 	int			dcin_uv_count;
 	ktime_t			dcin_uv_last_time;
 	int			last_wls_vout;
-};
-
-#ifdef VENDOR_EDIT
-/* Yichun.Chen  PSW.BSP.CHG  2019-04-08  for charge */
-enum skip_reason {
-	REASON_OTG_ENABLED	= BIT(0),
-	REASON_FLASH_ENABLED	= BIT(1)
-};
-
-struct smb_dt_props {
-	int			usb_icl_ua;
-	struct device_node	*revid_dev_node;
-	enum float_options	float_option;
-	int			chg_inhibit_thr_mv;
-	bool			no_battery;
-	bool			hvdcp_disable;
-	bool			hvdcp_autonomous;
-	int			sec_charger_config;
-	int			auto_recharge_soc;
-	int			auto_recharge_vbat_mv;
-	int			wd_bark_time;
-	int			wd_snarl_time_cfg;
-	int			batt_profile_fcc_ua;
-	int			batt_profile_fv_uv;
-	int			term_current_src;
-	int			term_current_thresh_hi_ma;
-	int			term_current_thresh_lo_ma;
-	int			disable_suspend_on_collapse;
-};
-
-struct smb5 {
-	struct smb_charger	chg;
-	struct dentry		*dfs_root;
-	struct smb_dt_props	dt;
-};
-
-struct qcom_pmic {
-	struct smb5		*smb5_chip;
-	struct iio_channel	*pm8150b_vadc_dev;
-	struct iio_channel	*pm8150b_usbtemp_vadc_dev;
-
-	/* for complie*/
-	bool			otg_pulse_skip_dis;
-	int			pulse_cnt;
-	unsigned int		therm_lvl_sel;
-	bool			psy_registered;
-	int			usb_online;
-
-	/* copy from msm8976_pmic begin */
-	int			bat_charging_state;
-	bool	 		suspending;
-	bool			aicl_suspend;
-	bool			usb_hc_mode;
-	int			usb_hc_count;
-	bool			hc_mode_flag;
-	/* copy form msm8976_pmic end */
 };
 #endif
 

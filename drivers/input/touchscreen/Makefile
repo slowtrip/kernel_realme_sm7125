@@ -119,3 +119,4 @@ obj-$(CONFIG_TOUCHSCREEN_ST)		+= st/
 #endif /*ODM_LQ_EDIT*/
 
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM)	+= synaptics_tcm/
+obj-$(CONFIG_TOUCHSCREEN_RAYDIUM_CHIPSET)  += raydium_wt030/

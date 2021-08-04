@@ -1,4 +1,4 @@
-/* Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1918,6 +1918,7 @@ done:
 static int qg_setprop_batt_age_level(struct qpnp_qg *chip, int batt_age_level)
 {
 	int rc = 0;
+	u16 data = 0;
 
 	if (!chip->dt.multi_profile_load)
 		return 0;
@@ -1942,6 +1943,12 @@ static int qg_setprop_batt_age_level(struct qpnp_qg *chip, int batt_age_level)
 		if (rc < 0)
 			pr_err("error in storing batt_age_level rc =%d\n", rc);
 	}
+
+	/* Clear the learned capacity on loading a new profile */
+	rc = qg_sdam_multibyte_write(QG_SDAM_LEARNED_CAPACITY_OFFSET,
+						(u8 *)&data, 2);
+	if (rc < 0)
+		pr_err("Failed to clear SDAM learnt capacity rc=%d\n", rc);
 
 	qg_dbg(chip, QG_DEBUG_PROFILE, "Profile with batt_age_level = %d loaded\n",
 							chip->batt_age_level);
@@ -2095,6 +2102,9 @@ static int qg_psy_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_TIME_TO_FULL_AVG:
 		rc = ttf_get_time_to_full(chip->ttf, &pval->intval);
 		break;
+	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
+		rc = ttf_get_time_to_full(chip->ttf, &pval->intval);
+		break;
 	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG:
 		rc = ttf_get_time_to_empty(chip->ttf, &pval->intval);
 		break;
@@ -2114,6 +2124,9 @@ static int qg_psy_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_AVG:
 		rc = qg_get_vbat_avg(chip, &pval->intval);
+		break;
+	case POWER_SUPPLY_PROP_CURRENT_AVG:
+		rc = qg_get_ibat_avg(chip, &pval->intval);
 		break;
 	case POWER_SUPPLY_PROP_POWER_NOW:
 		rc = qg_get_power(chip, &pval->intval, false);
@@ -2177,6 +2190,7 @@ static enum power_supply_property qg_psy_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_TIME_TO_FULL_AVG,
+	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
 	POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG,
 	POWER_SUPPLY_PROP_ESR_ACTUAL,
 	POWER_SUPPLY_PROP_ESR_NOMINAL,
@@ -2184,6 +2198,7 @@ static enum power_supply_property qg_psy_props[] = {
 	POWER_SUPPLY_PROP_FG_RESET,
 	POWER_SUPPLY_PROP_CC_SOC,
 	POWER_SUPPLY_PROP_VOLTAGE_AVG,
+	POWER_SUPPLY_PROP_CURRENT_AVG,
 	POWER_SUPPLY_PROP_POWER_AVG,
 	POWER_SUPPLY_PROP_POWER_NOW,
 	POWER_SUPPLY_PROP_SCALE_MODE_EN,
@@ -2199,6 +2214,17 @@ static const struct power_supply_desc qg_psy_desc = {
 	.set_property = qg_psy_set_property,
 	.property_is_writeable = qg_property_is_writeable,
 };
+
+#define DEFAULT_CL_BEGIN_IBAT_UA	(-100000)
+static bool qg_cl_ok_to_begin(void *data)
+{
+	struct qpnp_qg *chip = data;
+
+	if (chip->last_fifo_i_ua < DEFAULT_CL_BEGIN_IBAT_UA)
+		return true;
+
+	return false;
+}
 
 #define DEFAULT_RECHARGE_SOC 95
 static int qg_charge_full_update(struct qpnp_qg *chip)
@@ -3686,6 +3712,7 @@ static int qg_alg_init(struct qpnp_qg *chip)
 	cl->get_cc_soc = qg_get_cc_soc;
 	cl->get_learned_capacity = qg_get_learned_capacity;
 	cl->store_learned_capacity = qg_store_learned_capacity;
+	cl->ok_to_begin = qg_cl_ok_to_begin;
 	cl->data = chip;
 
 	rc = cap_learning_init(cl);

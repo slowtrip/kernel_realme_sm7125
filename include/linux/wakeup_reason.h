@@ -23,6 +23,7 @@
 
 #define MAX_SUSPEND_ABORT_LEN 256
 
+<<<<<<< HEAD
 struct wakeup_irq_node {
 	/* @leaf is a linked list of all leaf nodes in the interrupts trees.
 	 */
